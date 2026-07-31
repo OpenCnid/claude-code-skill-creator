@@ -69,6 +69,8 @@ whole. Six reference files carry the detail, loaded on demand. The sub-agent pro
 worked examples containing finished verdicts, and the blind comparator's blinding is now performed by
 a de-identification step rather than asserted in a sentence.
 
+**Validated in a clean room.** See [VALIDATION.md](VALIDATION.md) — 13/13 on held-out ground built by agents who never saw the panel, key-verified by a second blind reader, against a 46% baseline. The panel beat every seat that composed it.
+
 **A test suite**, most of it derived from the reproductions above — each fixture is a defect that
 actually happened. Run `python -m unittest discover tests` to see the current count.
 
