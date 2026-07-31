@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Coverage / test artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# Build output — package_skill writes these
+*.zip
+*.skill
+*.partial
+
+# Eval workspaces. These belong beside the skill, not inside it, but they get
+# created here often enough to be worth ignoring: they can be large, they carry
+# a person's own prompts and outputs, and they are never part of a distribution.
+*-workspace/
+evals/
+
+# Secrets. Belt and braces — package_skill excludes these from archives, but
+# nothing should stop them reaching a commit either.
+.env
+.env.*
+*.env
+*.pem
+*.key
+id_rsa*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

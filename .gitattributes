@@ -1,0 +1,15 @@
+# Normalize to LF in the repository. This matters more here than in most projects:
+# these scripts are read and executed on Windows, macOS, and Linux, and a chunk of
+# the defects this codebase exists to fix were line-ending and encoding problems
+# that only appeared on one platform.
+* text=auto eol=lf
+
+# Fixtures are inputs to tests that assert byte-level behaviour. Git must not
+# rewrite them on checkout, or a test that checks encoding or line endings would
+# be measuring what Git did rather than what the code did.
+tests/fixtures/** -text
+
+# Binary
+*.png binary
+*.zip binary
+*.skill binary

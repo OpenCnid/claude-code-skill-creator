@@ -1,0 +1,20 @@
+{
+  "expectations": [
+    {
+      "text": "expectation 1",
+      "passed": true,
+      "evidence": "output matched the expectation"
+    },
+    {
+      "text": "expectation 2",
+      "passed": true,
+      "evidence": "output matched the expectation"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  }
+}
