@@ -48,6 +48,14 @@ Three workspaces, each aimed at a specific defect class:
                            render alike), and one carrying both typed reasons
                            so `jurisdiction` and `evidence` are separable on
                            screen.
+  reason-taxonomy-         Every abstention reason the contract defines, on one
+  workspace/               page, plus one grading carrying a reason the page
+                           does not know and one carrying none at all. Four
+                           states, and no two of them may render alike:
+                           `underspecified` must not read as a variant of the
+                           other two, an unrecognized value must read as
+                           recorded-but-unknown, and only the missing one may
+                           say nothing was recorded.
   previous-contract-       grading.json in the retired boolean shape. The page
   workspace/               must name it as the previous contract and show the
                            checks as unrecorded rather than guessing whether
@@ -68,6 +76,11 @@ if str(SKILL_ROOT) not in sys.path:
 # that spells the tag itself would keep passing after the vocabulary moved,
 # which is the whole failure mode C12 exists to close.
 from scripts.utils import condition_line  # noqa: E402
+# The abstention-reason enum, imported for the same reason as `condition_line`
+# above: a fixture that spells the reasons out by hand keeps passing after the
+# enum grows, and the enum growing from two to three is exactly the event these
+# fixtures now have to catch.
+from scripts.validate_grading import ABSTAIN_REASONS  # noqa: E402
 
 DEFAULT_TARGET = Path(__file__).resolve().parent / "fixtures"
 
@@ -147,7 +160,15 @@ def result_of(exps, time_seconds=None, tokens=None):
 
 
 def _abstention(abstained, graded, total, reasons, runs, runs_without_rate=0):
-    filled = {"jurisdiction": 0, "evidence": 0, "untyped": 0}
+    """A `run_summary.<config>.abstention` block.
+
+    The reason keys come from the contract's enum rather than from a list
+    written out here, so this matches what `abstention_stats` actually emits
+    even after the enum changes. `untyped` is not in the enum - it is the
+    aggregator's bucket for a reason outside it - so it is added separately.
+    """
+    filled = {reason: 0 for reason in ABSTAIN_REASONS}
+    filled["untyped"] = 0
     filled.update(reasons)
     return {"abstained": abstained, "graded": graded, "total": total,
             "rate": round(abstained / total, 4) if total else None,
@@ -812,6 +833,140 @@ def build(target: Path) -> Path:
             "delta": {
                 "pass_rate": {"value": 0.0, "formatted": "+0.00",
                               "polarity": "higher_is_better", "better": None},
+                "time_seconds": {"value": 0.0, "formatted": "+0.0",
+                                 "polarity": "lower_is_better", "better": None},
+                "tokens": {"value": 0.0, "formatted": "+0",
+                           "polarity": "lower_is_better", "better": None},
+            },
+        },
+        "exclusions": [],
+        "layout_warnings": [],
+        "notes": [],
+    })
+
+    # =======================================================================
+    # reason-taxonomy-workspace: every reason state on one page
+    #
+    # Four states an abstention's reason can be in, and the page must draw four
+    # different things:
+    #
+    #   jurisdiction     someone else can rule on it -> reassign the judge
+    #   evidence         this judge could have ruled -> supply the artifact
+    #   underspecified   NOBODY could rule on it     -> rewrite the assertion
+    #   "busy"           a value outside the enum: recorded, but this build has
+    #                    no meaning for it
+    #   (absent)         nothing was recorded at all
+    #
+    # The third and fourth are the ones that were wrong. `underspecified` is
+    # schema-valid and the page's whitelist stopped at two, so it rendered as
+    # "abstained: reason not recorded" - present data displayed as absent,
+    # which sends the one person who could fix the sentence off to fix the
+    # grader instead. The fourth shares that failure: a value the page does not
+    # recognize is still a value, and reporting it as "not recorded" blames the
+    # producer for an omission that never happened.
+    #
+    # `"busy"` and the absent reason are both schema-INVALID: validate_grading
+    # rejects them and the aggregator excludes them, so neither can reach a
+    # real benchmark by itself. They are here because this page is also opened
+    # on hand-edited files and on files written by a grader that is ahead of or
+    # behind the contract, and what it says then is the whole point of the
+    # distinction.
+    # =======================================================================
+    rt = "reason-taxonomy-workspace/iteration-1"
+    rt_texts = [
+        "Emits a CSV file",
+        "Totals row is last",
+        "Follows the documented ordering of steps",
+        "Handles the malformed row",
+        "Reads well",
+        "Meets the bar",
+        "Is correct",
+    ]
+    rt_primary = expectations(
+        rt_texts,
+        [True, False, "abstain", "abstain", "abstain", "abstain", "abstain"],
+        {
+            2: "the run kept no transcript, and the ordering is the panel "
+               "lead's call rather than this seat's",
+            3: "outputs/ holds report.csv only; the malformed-row case was "
+               "never exercised",
+            4: "“well” is not defined anywhere - no threshold, no comparison, "
+               "no rubric entry names it",
+            5: "the file records a reason this page has no meaning for",
+            6: "the file records no reason at all",
+        },
+        reasons={2: "jurisdiction", 3: "evidence", 4: "underspecified",
+                 # Not in the enum, and deliberately not a typo of one of the
+                 # three: a near-miss would test spelling, and what is under
+                 # test is what the page says about a value it does not know.
+                 5: "busy",
+                 6: None},
+    )
+    # The baseline ruled on all seven, so every row in the comparison table has
+    # a verdict on one side and an abstention on the other. A reader comparing
+    # the two columns is exactly who needs the reason to be legible.
+    rt_baseline = expectations(rt_texts, [True] * 7)
+
+    rt_dir = rt + "/eval-0-four-reason-states"
+    wj(rt_dir + "/eval_metadata.json", {
+        "eval_id": 0, "eval_name": "four-reason-states",
+        "prompt": "Produce the report.",
+        "assertions": rt_texts,
+    })
+    for config, exps in (("with_skill", rt_primary),
+                         ("without_skill", rt_baseline)):
+        w(rt_dir + "/" + config + "/run-1/outputs/report.csv",
+          "name,total\nacme,42\n")
+        wj(rt_dir + "/" + config + "/run-1/grading.json", {
+            "expectations": exps,
+            "summary": summary_of(exps),
+        })
+        wj(rt_dir + "/" + config + "/run-1/timing.json",
+           {"total_tokens": 100, "duration_ms": 2000,
+            "total_duration_seconds": 2.0})
+
+    wj(rt + "/benchmark.json", {
+        "primary": "with_skill",
+        "baseline": "without_skill",
+        "metadata": {
+            "skill_name": "reason-taxonomy-demo",
+            "timestamp": "2026-07-31T00:00:00Z",
+            "evals_run": [0],
+            "runs_per_configuration": 1,
+            "runs_per_configuration_by_config": {"with_skill": 1,
+                                                 "without_skill": 1},
+        },
+        "runs": [
+            run(0, "four-reason-states", "with_skill",
+                result_of(rt_primary, 2.0, 100), rt_primary),
+            run(0, "four-reason-states", "without_skill",
+                result_of(rt_baseline, 2.0, 100), rt_baseline),
+        ],
+        "run_summary": {
+            "with_skill": {
+                "pass_rate": _stat(0.5, None, 0.5, 0.5, 1, 0),
+                "time_seconds": _stat(2.0, None, 2.0, 2.0, 1, 0),
+                "tokens": _stat(100.0, None, 100, 100, 1, 0),
+                # Two of the five carry no reason the enum defines, so they
+                # pool under `untyped` - which is the aggregator's honest
+                # answer and is not the same claim the page used to make about
+                # them individually.
+                "abstention": _abstention(
+                    5, 2, 7,
+                    {"jurisdiction": 1, "evidence": 1, "underspecified": 1,
+                     "untyped": 2}, 1),
+                "runs": 1,
+            },
+            "without_skill": {
+                "pass_rate": _stat(1.0, None, 1.0, 1.0, 1, 0),
+                "time_seconds": _stat(2.0, None, 2.0, 2.0, 1, 0),
+                "tokens": _stat(100.0, None, 100, 100, 1, 0),
+                "abstention": _abstention(0, 7, 7, {}, 1),
+                "runs": 1,
+            },
+            "delta": {
+                "pass_rate": {"value": -0.5, "formatted": "-0.50",
+                              "polarity": "higher_is_better", "better": False},
                 "time_seconds": {"value": 0.0, "formatted": "+0.0",
                                  "polarity": "lower_is_better", "better": None},
                 "tokens": {"value": 0.0, "formatted": "+0",

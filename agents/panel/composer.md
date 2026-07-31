@@ -72,14 +72,20 @@ where another sees, and that is what makes their disagreement informative rather
 |---|---|---|
 | `characterization_path` | yes | The `characterization.json` written by the characterizer. Your entire view of the domain. |
 | `composition_path` | yes | Absolute path to write your JSON to. |
-| `registries` | yes | The four parameter registries — `Emotional`, `Logical`, `Sensorial`, `Ethical` — from which `select` entries are drawn as `registry.parameter/aspect`. |
+| `registries_path` | yes | Absolute path to `references/judge-registries.md` in this bundle. It defines the four registries — `Emotional`, `Logical`, `Sensorial`, `Ethical` — the `registry.parameter/aspect` grammar, and the named parameters `select` entries are drawn from. Read it before Step 1. |
 
-The characterization is your only domain input. There is no second source, and a path you were not
-given names a file that does not exist.
+The characterization is your only **domain** input. `registries_path` carries vocabulary and no domain
+content: reading it tells you how to spell a selection and nothing about what was produced, graded, or
+asserted. There is no third source, and a path you were not given names a file that does not exist.
 
 ## Process
 
 ### Step 1: Read the domain, and let the driving question set registry access
+
+Read `registries_path` first — it is where the parameter names and the `registry.parameter/aspect`
+grammar live, and `gate_panel.py` compares `select` entries between seats by exact string equality, so
+two seats holding one region of ground under two spellings pass an overlap gate that would have caught
+the shared name.
 
 The driving question here is *did this statement hold of this run's output, and can that be shown?* —
 an epistemic question. `Logical` and `Sensorial` carry it. Pull `Ethical` in only where the
@@ -203,8 +209,9 @@ Field Description states a count.
   - **purpose**: string, written as a question. The one thing this seat answers.
   - **claim_modes**: array. Which modes of assertion this seat rules on. A mode absent here is a mode
     this seat jurisdiction-abstains on.
-  - **select**: array of qualified parameters, `registry.parameter/aspect`. Sparse — each entry earns
-    its place, and every entry is ground this seat can be held to.
+  - **select**: array of qualified parameters, `registry.parameter/aspect`, spelled as
+    `references/judge-registries.md` defines them. Sparse — each entry earns its place, and every
+    entry is ground this seat can be held to.
   - **covers**: array of facet ids from `domain.facets`. Gated: every facet must appear in at least one
     seat's `covers`.
   - **inputs**: array. The evidence allowlist. The orchestrator hands this seat exactly these channels
@@ -214,9 +221,24 @@ Field Description states a count.
       count. Write it so a seat could be shown to have violated it.
     - **uncertainty_posture**: which way doubt resolves, and the shape of doubt that does *not* convert
       into a verdict. "Genuine inability to tell" must land on the abstention path, never on `fail`.
-    - **abstention_boundary**: the condition that forces `abstain`, and which reason it carries —
-      `jurisdiction` when the statement is outside what this seat rules on, `evidence` when it is inside
-      and the material needed to decide is not in this seat's `inputs`.
+    - **abstention_boundary**: the conditions that force `abstain`, and which typed reason each one
+      carries. There are three, each naming a different repair, and the seat picks between them by a
+      **decision procedure, not by which description fits best** — the frame states the procedure in
+      invariant bytes and your boundary makes it concrete for this seat:
+
+      | # | The seat asks | Reason | Repair |
+      |---|---|---|---|
+      | 1 | is something missing that this run could have produced? | `evidence` | supply the missing artifact |
+      | 2 | does a standard that decides it already exist, held by someone who is not me? | `jurisdiction` | reassign the judge |
+      | 3 | can I quote the term nobody has fixed? | `underspecified` | rewrite the assertion |
+
+      First *yes* decides; none answerable is `jurisdiction`. Write all three into every seat's
+      boundary. What you compose is the seat-specific content of each question — **which** channels
+      being absent make question 1 fire for this seat, and **which** standards this domain has that
+      this seat does not hold, so question 2 has nameable holders rather than a shrug. Question 3 is
+      the same at every seat, and so is its price: see *Make `underspecified` expensive* under
+      Guidelines. A boundary that names only two reasons leaves a seat routing a nobody-could-rule
+      statement through whichever of them fits worse.
   - **taxonomy**: object, closed, at least one entry. Key is the failure class name a `fail` verdict
     cites; value is the condition. Closed means a seat that finds a failure outside these classes has
     found something its composition did not anticipate, and reports it by abstaining on `jurisdiction`
@@ -249,3 +271,30 @@ Field Description states a count.
   condition, because those are the only bytes the seat will read that carry your reasoning.
 - **Name what the seat cannot rule on before naming what it can.** The abstention boundary written
   first tends to be honest; written last it tends to be the residue of an appetite to decide.
+- **Make `underspecified` expensive.** It is the most comfortable of the three reasons: it locates the
+  defect in the eval author's sentence rather than in the seat, so it is the one a seat reaches for
+  when the work is hard and the appetite is low. Availability is not the problem — it has to be
+  available, or a statement nobody could rule on gets filed as a defect of the run. The bar is. Write
+  the boundary so the seat pays for it:
+
+  - It is a claim about **every possible judge**, made by one seat over one run's material. Nothing
+    else in the schema asks a seat to quantify over judges it cannot see.
+  - It sits at question 3 of the boundary, and **question 3 is affirmative rather than a
+    fall-through**. That placement is the guard: if the seat cannot quote the open term, the ladder
+    returns `jurisdiction`, so the comfortable answer is the one that has to be earned and the
+    residue is the humble one. Compose the boundary so it reads that way round — a boundary whose
+    last clause is "otherwise, `underspecified`" hands the seat an exit for everything it could not
+    be bothered to decide.
+  - Its `evidence` string must carry the word itself. An `underspecified` whose evidence says "this
+    statement is too vague to decide" is the abstention that costs nothing, and it is the one to
+    write the boundary against.
+  - **Give question 2 nameable holders.** The distinction that actually does the work is between a
+    standard that exists and is somebody else's, and no standard existing at all — and a seat cannot
+    apply it against an empty idea of who might hold one. Name, in the boundary, the standards this
+    domain has that this seat does not hold: the domain's published conventions, the format
+    specification, whatever the characterization records as a convention. A seat that cannot name a
+    holder will read every hard statement as standardless, which is `underspecified` claimed by
+    default.
+  - A statement that is merely hard, ambiguous between two readings, or uncomfortable to decide is
+    **not** underspecified. Deciding hard statements on thin evidence is the seat's job; the seat that
+    files that as an author's defect has taken the one exit the author has to pay for.

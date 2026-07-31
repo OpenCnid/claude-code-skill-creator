@@ -274,13 +274,19 @@ quantitative side of the loop rests on, and the one whose field names are most o
       "verdict": "abstain",
       "abstainReason": "evidence",
       "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"
+    },
+    {
+      "text": "{Fourth_Assertion_Copied_Character_For_Character}",
+      "verdict": "abstain",
+      "abstainReason": "underspecified",
+      "evidence": "{The_Open_Term_Quoted_And_Why_No_Artifact_Could_Settle_It}"
     }
   ],
   "summary": {
     "passed": 1,
     "failed": 1,
-    "abstained": 1,
-    "total": 3,
+    "abstained": 2,
+    "total": 4,
     "pass_rate": 0.5
   }
 }
@@ -288,7 +294,9 @@ quantitative side of the loop rests on, and the one whose field names are most o
 
 The enum members, the integers and `pass_rate` are literal because their **types and closed values**
 are the contract and the validator checks the arithmetic between them. Everything a grader would have
-to judge is a slot.
+to judge is a slot. Both abstentions are shown with different reasons because they are not
+interchangeable: the third entry says *this run* did not carry what a ruling needed, the fourth says
+*no run could have*.
 
 **Fields**
 
@@ -300,11 +308,15 @@ to judge is a slot.
     boolean spelled as a string. This is the **one** authoritative field: the old boolean `passed` was
     removed, not kept alongside, because two representations of one fact that must agree are a drift
     surface.
-  - `abstainReason` — JSON string, exactly one of `"jurisdiction"`, `"evidence"`, or `null`. Required
-    when and only when `verdict` is `"abstain"`; `null` or omitted otherwise, and a non-null reason
-    beside a `pass` or a `fail` is an error. `jurisdiction` means the expectation is outside what this
-    judge can rule on. `evidence` means it is in jurisdiction, but the evidence a ruling needed was not
-    in hand.
+  - `abstainReason` — JSON string, exactly one of `"jurisdiction"`, `"evidence"`,
+    `"underspecified"`, or `null`. Required when and only when `verdict` is `"abstain"`; `null` or
+    omitted otherwise, and a non-null reason beside a `pass` or a `fail` is an error.
+
+    The three are not interchangeable, because each one names a **different repair performed by a
+    different person**, and that is the whole reason the field is typed rather than free text. See
+    [Typing an abstention](#typing-an-abstention) below for the procedure that decides between them —
+    the definitions alone do not, and a typed field whose boundary is unstated collects two judges'
+    habits rather than one run's facts.
   - `evidence` — string. The quote or file observation behind the verdict. Required, including on an
     abstention — there the evidence field says what a ruling would have needed and where it was looked
     for, which is what makes an abstention recheckable rather than a shrug.
@@ -318,6 +330,65 @@ to judge is a slot.
 
     `pass_rate = passed / (passed + failed)`. **Abstentions leave the denominator**, and the rate is
     `null` when that denominator is zero.
+
+### Typing an abstention
+
+The three reasons are only worth having if two judges sort the same abstention into the same one.
+Definitions alone do not achieve that — *"outside what this judge can rule on"* and *"no judge could
+rule"* are both true of a great many statements, and a judge picking the closest-sounding description
+picks by temperament. So the reason is chosen by a procedure, stated in the same words in
+`agents/grader.md` and in `agents/panel/seat-frame.md`'s invariant output block:
+
+**Three questions, in order. The first the judge can answer *yes* to decides.**
+
+| # | Question | Reason | Repair, and whose |
+|---|---|---|---|
+| 1 | Is something missing that **this run** could have produced — a transcript, an input, a rendered view — that would let you rule under a standard you already hold? | `evidence` | supply the missing artifact — the harness's |
+| 2 | Does a standard that decides it **already exist outside you** — one whose holder you could name, and that two of its holders would apply alike? | `jurisdiction` | reassign the judge — the panel's |
+| 3 | Can you **quote the open term** — the word nobody defined, the comparison with no baseline, the threshold nobody set — and say what fixing it would look like? | `underspecified` | rewrite the assertion — the eval author's |
+
+**None of the three answerable is `jurisdiction`.** Failing to find a standard is not the same as
+establishing that none exists, and the second is much the stronger claim. That is also why question 3
+is affirmative rather than a fall-through: it makes `underspecified` — the only reason that locates
+the defect outside both the judge and the run, and therefore the cheapest one to write — the answer
+that has to be earned, and leaves the humble answer as the residue.
+
+Two clauses stop the questions collapsing into each other:
+
+- **A standard handed in from outside is not evidence.** A specification, a regulation, a rubric, or
+  a definition of the disputed word does not fill a gap in the material; it confers standing the
+  judge did not have. Question 1 covers artifacts of *this run* only. Without this clause every
+  standard-shaped gap can be re-described as a missing document and question 1 swallows the other two.
+- **A preference nobody has fixed is not a standard.** Question 2 asks whether the standard already
+  exists, not whether someone could produce one on request. If the route to a ruling runs through
+  somebody *writing down* a threshold that does not exist yet, that is question 3. Without this
+  clause, "the requester knows what they meant" turns every underspecified assertion into a
+  jurisdiction abstention and the third reason never fires.
+
+**Worked against the two cases nearest the line.** These are here and not in any prompt: a judge that
+reads a worked case reads it as a pattern to match, and the procedure has to survive on statements
+nobody anticipated.
+
+- *A privacy notice, against "satisfies the disclosure requirements."* Q1: nothing is missing — the
+  notice is complete and in hand. Q2: a standard exists, written down in law and applied alike by the
+  people who hold it, and this judge is not one of them → **`jurisdiction`**. The repair is routing:
+  give it to a judge with that standing, or confer the standing by supplying the standard. Note that
+  supplying the regulation is *not* the `evidence` repair, and the first clause above is what keeps it
+  from being mistaken for one.
+- *A rewrite, against "less corporate."* Q1: nothing is missing. Q2: the requester named a direction,
+  not a threshold; two readers of "less corporate" would not converge, and nobody holds a standard
+  that decides it — it would have to be written first. Q3: the open term is quotable —"less
+  corporate", with no baseline text and no scale → **`underspecified`**. The repair is the author's.
+
+The two differ on question 2 and nothing else, which is the boundary the field exists to carry: a
+standard that exists and belongs to someone, versus no standard for anyone to hold.
+
+**Where the procedure leaves a real disagreement**, it leaves it in a legible place. The item that
+established the third reason — a comparative claim carrying an undefined term, on which two
+independent blind readers split, one ruling it decidable and the other saying no judge could reach it
+— is a disagreement about question 2: whether the domain has a convention that somebody holds. That
+is a question people can argue about with evidence. Two judges disagreeing about which of three
+descriptions "feels closest" is not.
 
 ### Why abstention leaves the denominator
 
@@ -364,13 +435,15 @@ validator says so by name rather than reporting a type error:
 | `{"passed": false}` — evidence showed it false | `{"verdict": "fail", "abstainReason": null}` |
 | `{"passed": false}` — the judge could not tell | `{"verdict": "abstain", "abstainReason": "evidence"}` |
 | `{"passed": false}` — not this judge's call | `{"verdict": "abstain", "abstainReason": "jurisdiction"}` |
+| `{"passed": false}` — nobody could tell, the assertion names nothing to check | `{"verdict": "abstain", "abstainReason": "underspecified"}` |
 | `summary` without `abstained` | add `abstained`; `passed + failed + abstained == total` |
 | `pass_rate = passed / total` | `pass_rate = passed / (passed + failed)`, `null` at a zero denominator |
 
-The third and fourth rows are the whole point of the change, and they are the ones a mechanical
-migration cannot do for you: the previous contract wrote the same byte for all three of "verified
-false", "could not tell", and "not my call", so the distinction has to be recovered from the evidence
-text or the run re-graded. A migration that maps every `false` to `"fail"` preserves the defect.
+The three abstention rows are the whole point of the change, and they are the ones a mechanical
+migration cannot do for you: the previous contract wrote the same byte for all four of "verified
+false", "could not tell", "not my call", and "nobody could tell", so the distinction has to be
+recovered from the evidence text or the run re-graded. A migration that maps every `false` to
+`"fail"` preserves the defect.
 
 ### Optional blocks
 
@@ -509,7 +582,7 @@ with no invented content in it.
     "skill_path": null,
     "executor_model": null,
     "analyzer_model": null,
-    "timestamp": "2026-07-31T05:48:54Z",
+    "timestamp": "2026-07-31T19:39:24Z",
     "evals_run": [0],
     "runs_per_configuration": 1,
     "runs_per_configuration_by_config": {"with_skill": 1, "without_skill": 1}
@@ -520,11 +593,12 @@ with no invented content in it.
       "eval_name": "{Descriptive_Slug_Matching_The_Directory_Suffix}",
       "configuration": "with_skill",
       "run_number": 1,
-      "result": {"pass_rate": 0.5, "passed": 1, "failed": 1, "abstained": 1, "total": 3, "time_seconds": 2.0, "tokens": 1000},
+      "result": {"pass_rate": 0.5, "passed": 1, "failed": 1, "abstained": 2, "total": 4, "time_seconds": 2.0, "tokens": 1000},
       "expectations": [
         {"text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}", "verdict": "pass", "abstainReason": null, "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"},
         {"text": "{Second_Assertion_Copied_Character_For_Character}", "verdict": "fail", "abstainReason": null, "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"},
-        {"text": "{Third_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "evidence", "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"}
+        {"text": "{Third_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "evidence", "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"},
+        {"text": "{Fourth_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "underspecified", "evidence": "{The_Open_Term_Quoted_And_Why_No_Artifact_Could_Settle_It}"}
       ],
       "notes": []
     },
@@ -533,11 +607,12 @@ with no invented content in it.
       "eval_name": "{Descriptive_Slug_Matching_The_Directory_Suffix}",
       "configuration": "without_skill",
       "run_number": 1,
-      "result": {"pass_rate": 0.0, "passed": 0, "failed": 2, "abstained": 1, "total": 3, "time_seconds": 1.0, "tokens": 2000},
+      "result": {"pass_rate": 0.0, "passed": 0, "failed": 2, "abstained": 2, "total": 4, "time_seconds": 1.0, "tokens": 2000},
       "expectations": [
         {"text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}", "verdict": "fail", "abstainReason": null, "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"},
         {"text": "{Second_Assertion_Copied_Character_For_Character}", "verdict": "fail", "abstainReason": null, "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"},
-        {"text": "{Third_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "evidence", "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"}
+        {"text": "{Third_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "evidence", "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"},
+        {"text": "{Fourth_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "underspecified", "evidence": "{The_Open_Term_Quoted_And_Why_No_Artifact_Could_Settle_It}"}
       ],
       "notes": []
     }
@@ -547,14 +622,14 @@ with no invented content in it.
       "pass_rate": {"mean": 0.5, "stddev": null, "min": 0.5, "max": 0.5, "n": 1, "missing": 0},
       "time_seconds": {"mean": 2.0, "stddev": null, "min": 2.0, "max": 2.0, "n": 1, "missing": 0},
       "tokens": {"mean": 1000.0, "stddev": null, "min": 1000, "max": 1000, "n": 1, "missing": 0},
-      "abstention": {"abstained": 1, "graded": 2, "total": 3, "rate": 0.3333, "reasons": {"jurisdiction": 0, "evidence": 1, "untyped": 0}, "runs": 1, "runs_without_pass_rate": 0},
+      "abstention": {"abstained": 2, "graded": 2, "total": 4, "rate": 0.5, "reasons": {"jurisdiction": 0, "evidence": 1, "underspecified": 1, "untyped": 0}, "runs": 1, "runs_without_pass_rate": 0},
       "runs": 1
     },
     "without_skill": {
       "pass_rate": {"mean": 0.0, "stddev": null, "min": 0.0, "max": 0.0, "n": 1, "missing": 0},
       "time_seconds": {"mean": 1.0, "stddev": null, "min": 1.0, "max": 1.0, "n": 1, "missing": 0},
       "tokens": {"mean": 2000.0, "stddev": null, "min": 2000, "max": 2000, "n": 1, "missing": 0},
-      "abstention": {"abstained": 1, "graded": 2, "total": 3, "rate": 0.3333, "reasons": {"jurisdiction": 0, "evidence": 1, "untyped": 0}, "runs": 1, "runs_without_pass_rate": 0},
+      "abstention": {"abstained": 2, "graded": 2, "total": 4, "rate": 0.5, "reasons": {"jurisdiction": 0, "evidence": 1, "underspecified": 1, "untyped": 0}, "runs": 1, "runs_without_pass_rate": 0},
       "runs": 1
     },
     "delta": {
@@ -657,11 +732,15 @@ rather than inferred by whatever draws the table. When either side has no usable
 - `run_summary.<config>.abstention` — the counts every rate above must be read against, or `null` when
   no run carried usable counts. `abstained`, `graded` (`passed + failed`) and `total` are pooled over
   every expectation in every run of that configuration; `rate` is `abstained / total`, or `null` when
-  `total` is zero. `reasons` splits the abstentions into `jurisdiction`, `evidence` and `untyped` —
-  a wall of `jurisdiction` says the eval set is asking this judge questions it cannot answer, a wall of
-  `evidence` says the runs are not producing what a ruling needs, and they call for different fixes.
-  `runs` is how many runs contributed counts and `runs_without_pass_rate` is how many produced no rate
-  at all.
+  `total` is zero. `reasons` splits the abstentions into `jurisdiction`, `evidence`, `underspecified`
+  and `untyped`, because each one calls for a different fix: a wall of `jurisdiction` says the eval set
+  is asking this judge questions it cannot answer, a wall of `evidence` says the runs are not producing
+  what a ruling needs, and a wall of `underspecified` says the assertions themselves name nothing to
+  check. `untyped` counts abstentions carrying no valid reason; schema-invalid gradings never reach the
+  aggregator, so it stays `0` in practice and is emitted rather than assumed. The keys come from
+  `scripts.validate_grading.ABSTAIN_REASONS`, so the split follows the enum rather than a second copy
+  of it. `runs` is how many runs contributed counts and `runs_without_pass_rate` is how many produced
+  no rate at all.
 
   **`abstention` is deliberately not a delta metric and carries no polarity.** Every other metric
   declares which direction is better ([below](#comparison-direction)); abstention has no honest answer.

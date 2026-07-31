@@ -72,6 +72,7 @@
         "reasons": {
           "jurisdiction": 0,
           "evidence": 0,
+          "underspecified": 0,
           "untyped": 0
         },
         "runs": 1,

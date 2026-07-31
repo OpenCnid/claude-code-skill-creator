@@ -229,20 +229,19 @@ python -m scripts.validate_grading <workspace>/iteration-N
 python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
 ```
 
-Grade each run with a sub-agent reading `agents/grader.md`, writing `grading.json`. Where an
-assertion can be checked by a script, write the script — faster, repeatable across iterations, and
-it doesn't drift.
+Grade each run with a **composed panel** — three seats, each answering one question, composed fresh
+for this skill's domain. `references/grading-panel.md` has the six steps and the scripts. It costs
+about six sub-agents per graded run against one, so say that out loud before spending it: use the
+panel when the number will be acted on, and the single-judge path in `agents/grader.md` when you are
+sanity-checking your own draft.
 
-Sub-agents land cold: they see the prompt you build and nothing else. Pass these by name, because
-each prompt names them and a missing one is read as "that file does not exist for this run":
+Where an assertion can be checked by a script, write the script — faster, repeatable, and it doesn't
+drift.
 
-| Spawning | Required | Optional |
-|---|---|---|
-| grader | `expectations`, `eval_prompt`, `outputs_dir`, `grading_path` | `transcript_path`, `user_notes_path` |
-| analyzer | `benchmark_path`, `notes_path` | `skill_path` |
-| comparator | see its `<blinding_protocol>` — you run the de-identification first | — |
+Sub-agents land cold. **A parameter you don't pass reads as "that file does not exist for this run"**,
+not as "go find it" — `references/grading-panel.md` collects what each one needs.
 
-`eval_prompt` is the one people skip. Without it a grader cannot tell genuine completion from output
+`eval_prompt` is the one people skip. Without it a judge cannot tell genuine completion from output
 that merely looks like the right shape.
 
 Then the analyst pass: read `agents/analyzer.md` (Mode 1) for what to look for — assertions that
@@ -325,17 +324,15 @@ The description is the whole triggering mechanism, and it is worth measuring rat
 Offer this once the skill itself is in good shape.
 
 Build ~20 queries, half should-trigger and half not, and make them real: file paths, job context,
-column names, casual phrasing, typos. `"Format this data"` tests nothing. The should-not cases carry
-the value — make them **near-misses** sharing vocabulary with the description, like authoring a
-sub-agent or editing CLAUDE.md. An obviously-irrelevant negative measures nothing.
+casual phrasing, typos. `"Format this data"` tests nothing. The should-not cases carry the value —
+make them **near-misses** sharing vocabulary with the description. An obviously-irrelevant negative
+measures nothing, and a simple one-step query is a poor test whatever the description says, because
+Claude handles those without consulting any skill.
 
-Keep queries substantive: Claude handles simple one-step requests directly without consulting any
-skill, so `"read this file"` is a poor test whatever the description says.
-
-`references/description-optimization.md` covers the review UI, the optimization loop, and its cost
-controls. Two things to know before starting: it spawns nested `claude -p` sessions and can spend
-real money, so check the projected cost it prints; and it runs each probe in an isolated temporary
-project root, which is what keeps it out of your actual `.claude/` directory.
+`references/description-optimization.md` has the review UI, the loop, and its cost controls. Two
+things before starting: it spawns nested `claude -p` sessions and can spend real money, so read the
+projected cost it prints; and each probe runs in an isolated temp project root, which is what keeps
+it out of your actual `.claude/`.
 
 ---
 
@@ -380,6 +377,8 @@ optimizer needs the `claude` CLI. Read it if something in the main flow isn't av
 - `references/frontmatter.md` — every field, the three targets, YAML hazards
 - `references/how-skills-load.md` — compaction, budgets, precedence, limitations
 - `references/schemas.md` — every JSON artifact
+- `references/grading-panel.md` — the default grading path, its cost, its known limits
+- `references/judge-registries.md` — the vocabulary a panel composes from
 - `references/distribution.md` — installation routes
 - `references/description-optimization.md` — the triggering loop
 - `references/environments.md` — Claude.ai, Cowork, headless

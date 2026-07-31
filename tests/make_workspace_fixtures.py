@@ -63,6 +63,12 @@ all-abstained       contract C16 - every expectation in every run abstained,
 partly-abstained    contract C16 - 100% over 2 ruled-on checks and 9
                     abstentions beside 100% over 11, which must not render
                     alike.
+every-reason        contract C16 - every typed abstention reason in one
+                    workspace, including `underspecified`, which the markdown
+                    legend counted and did not define. One config also carries
+                    a run whose grading uses a reason outside the enum: it is
+                    schema-invalid, so it must be excluded and named rather
+                    than counted as `untyped` in a surviving column.
 previous-contract   contract C16 - grading.json in the retired boolean shape,
                     which must be diagnosed as the previous contract with a
                     migration rather than as a type error.
@@ -557,6 +563,72 @@ def _partly_abstained(root: Path) -> None:
     run(ev / "without_skill" / "run-1", grading(11, 0), timing(40000, 30.0))
 
 
+def _every_reason(root: Path) -> None:
+    """Contract C16 - all three typed reasons in one workspace.
+
+    `underspecified` was added to the enum after `benchmark.md`'s legend was
+    written, and the legend was a hand-written sentence naming two reasons
+    while `_fmt_abstention` printed whatever the counts held. The result was a
+    count in the Detail column with no definition underneath it - and the one
+    reason whose repair belongs to the person reading the benchmark was the one
+    left unexplained.
+
+    Both configurations are fully paired and every file is schema-valid, so
+    nothing is excluded and the counts in the rendered table are the only thing
+    under test.
+
+    with_skill:    2 pass, 1 fail, 3 abstain - one of each reason.
+    without_skill: 1 pass, 2 fail, 3 abstain - two `underspecified` and one
+                   `evidence`, so the split differs between the columns and a
+                   legend that printed one column's reasons for both would be
+                   visibly wrong.
+    """
+    it = root / "every-reason" / "iteration-1"
+    ev = it / "eval-0-mixed-reasons"
+    write_json(ev / "eval_metadata.json",
+               metadata(0, "mixed-reasons", "produce the report",
+                        assertions=[f"expectation {i + 1}" for i in range(6)]))
+    run(ev / "with_skill" / "run-1",
+        grading(2, 1, 3, abstain_reasons=["jurisdiction", "evidence",
+                                          "underspecified"]),
+        timing(80000, 60.0))
+    run(ev / "without_skill" / "run-1",
+        grading(1, 2, 3, abstain_reasons=["underspecified", "underspecified",
+                                          "evidence"]),
+        timing(40000, 30.0))
+
+
+def _unknown_reason(root: Path) -> None:
+    """A reason outside the enum, in a file that is otherwise well-formed.
+
+    `abstention_stats` keeps an `untyped` bucket for this, and the legend says
+    it is 0 in any workspace that passed validation. That claim needs a
+    workspace where the value exists to be sure the aggregator refuses it here
+    rather than quietly counting it - a count under `untyped` in a surviving
+    column would report a judge's ruling that no contract defines.
+
+    eval-0 is clean on both sides so something survives; eval-1's `with_skill`
+    grading carries `abstainReason: "busy"`, which fails schema validation and
+    takes the eval out of the comparison.
+    """
+    it = root / "unknown-reason" / "iteration-1"
+    ev0 = it / "eval-0-clean"
+    write_json(ev0 / "eval_metadata.json",
+               metadata(0, "clean", "produce the report",
+                        assertions=["expectation 1", "expectation 2"]))
+    run(ev0 / "with_skill" / "run-1", grading(2, 0), timing(80000, 60.0))
+    run(ev0 / "without_skill" / "run-1", grading(1, 1), timing(40000, 30.0))
+
+    ev1 = it / "eval-1-reason-outside-the-enum"
+    write_json(ev1 / "eval_metadata.json",
+               metadata(1, "reason-outside-the-enum", "produce the report",
+                        assertions=["expectation 1", "expectation 2"]))
+    run(ev1 / "with_skill" / "run-1",
+        grading(1, 0, 1, abstain_reasons=["busy"]), timing(80000, 60.0))
+    run(ev1 / "without_skill" / "run-1",
+        grading(1, 0, 1, abstain_reasons=["evidence"]), timing(40000, 30.0))
+
+
 def _previous_contract(root: Path) -> None:
     """The PREVIOUS grading contract - a boolean `passed`, no `abstained`.
 
@@ -595,6 +667,8 @@ BUILDERS = (
     _duplicate_keys,
     _all_abstained,
     _partly_abstained,
+    _every_reason,
+    _unknown_reason,
     _previous_contract,
 )
 

@@ -32,11 +32,14 @@ if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
 from scripts.aggregate_benchmark import (  # noqa: E402
+    ABSTAIN_REASON_REPAIRS,
     METRIC_POLARITY,
     calculate_stats,
     resolve_roles,
 )
 from scripts.validate_grading import (  # noqa: E402
+    ABSTAIN_REASON_MEANINGS,
+    ABSTAIN_REASONS,
     classify_grading_path,
     compute_pass_rate,
     validate_grading_file,
@@ -992,6 +995,123 @@ class TestAbstentionReachesTheBenchmark(WorkspaceCase):
         self.assertNotEqual(proc.returncode, 0, self.combined(proc))
         out = self.combined(proc)
         self.assertIn("PREVIOUS grading contract", out)
+
+
+class TestEveryReasonIsDefinedWhereItIsCounted(WorkspaceCase):
+    """Contract C16 - the legend and the counts are one reason set.
+
+    `_fmt_abstention` has always printed whatever the `reasons` block held,
+    and the `## Abstentions` legend under it was a hand-written sentence
+    naming two. When the contract's enum went to three, `underspecified`
+    appeared in the Detail column with nothing underneath defining it - a
+    count with no meaning attached, in the one section of the file whose
+    entire job is attaching meanings to counts. Worse, it was the one reason
+    whose repair belongs to the person reading the benchmark.
+
+    Both halves now walk `validate_grading.ABSTAIN_REASONS`, so the tests below
+    are keyed off the enum too: adding a fourth reason makes them require a
+    fourth legend entry without anyone editing this file.
+    """
+
+    def test_the_legend_defines_every_reason_the_counts_can_contain(self):
+        self.aggregate("every-reason")
+        md = self.benchmark_md("every-reason")
+        legend = md[md.index("## Abstentions"):md.index("## By eval")]
+        for reason in ABSTAIN_REASONS:
+            self.assertIn(
+                f"- `{reason}`", legend,
+                f"`{reason}` is in the enum and can be counted in the Detail "
+                f"column, but the legend does not define it:\n" + legend)
+            self.assertIn(ABSTAIN_REASON_MEANINGS[reason], legend, reason)
+
+    def test_the_legend_names_the_repair_and_therefore_who_acts(self):
+        """The reason a third reason earns a slot at all.
+
+        `evidence` is fixed by supplying an artifact and `jurisdiction` by
+        reassigning the judge; `underspecified` is fixed by rewriting the
+        sentence, and only the eval's author can do that. A legend that
+        defines the three without saying which is which sends the reader to
+        change their panel when they need to change their assertion.
+        """
+        self.aggregate("every-reason")
+        legend = self.benchmark_md("every-reason")
+        for reason in ABSTAIN_REASONS:
+            self.assertIn(ABSTAIN_REASON_REPAIRS[reason], legend, reason)
+        self.assertIn("rewrite the assertion", ABSTAIN_REASON_REPAIRS["underspecified"])
+
+    def test_every_reason_in_the_enum_has_a_repair(self):
+        """The divergence guard on this side of the boundary.
+
+        `_abstention_legend` walks the enum, so a reason with no repair here is
+        still listed with its meaning - it can go unexplained, never missing.
+        This is what turns "unexplained" into a failure rather than something
+        somebody eventually notices.
+        """
+        self.assertEqual(sorted(ABSTAIN_REASON_REPAIRS), sorted(ABSTAIN_REASONS))
+
+    def test_untyped_is_defined_too_and_is_not_presented_as_a_reason(self):
+        """It is the aggregator's bucket, not something a judge can return."""
+        self.aggregate("every-reason")
+        legend = self.benchmark_md("every-reason")
+        self.assertIn("- `untyped`", legend)
+        self.assertIn("not a reason the contract defines", legend)
+
+    def test_the_counts_split_by_reason_and_the_two_columns_differ(self):
+        self.aggregate("every-reason")
+        data = self.benchmark("every-reason")
+        primary = data["run_summary"]["with_skill"]["abstention"]
+        baseline = data["run_summary"]["without_skill"]["abstention"]
+        self.assertEqual(primary["reasons"],
+                         {"jurisdiction": 1, "evidence": 1,
+                          "underspecified": 1, "untyped": 0})
+        self.assertEqual(baseline["reasons"],
+                         {"jurisdiction": 0, "evidence": 1,
+                          "underspecified": 2, "untyped": 0})
+        self.assertEqual((primary["abstained"], primary["graded"],
+                          primary["total"]), (3, 3, 6))
+
+        # And the same split reaches the rendered file, per configuration. A
+        # Detail column that printed one column's reasons for both would agree
+        # with itself and with nothing else.
+        md = self.benchmark_md("every-reason")
+        rows = {line.split("|")[1].strip(): line
+                for line in md.splitlines() if line.startswith("| With Skill |")
+                or line.startswith("| Without Skill |")}
+        self.assertIn("1 jurisdiction, 1 evidence, 1 underspecified",
+                      rows["With Skill"])
+        self.assertIn("1 evidence, 2 underspecified", rows["Without Skill"])
+        self.assertNotIn("jurisdiction", rows["Without Skill"])
+
+    def test_a_reason_outside_the_enum_is_excluded_and_named_not_bucketed(self):
+        """`untyped` stays 0 in a workspace that passed validation.
+
+        The legend says so, so something has to hold it true. An unrecognized
+        reason quietly counted under `untyped` in a surviving column would
+        report a kind of ruling no contract defines, and would do it in the
+        column a reader compares.
+        """
+        proc = self.aggregate("unknown-reason")
+        out = self.combined(proc)
+        self.assertIn("'busy' is not one of", out)
+        self.assertIn("schema_invalid", out)
+
+        data = self.benchmark("unknown-reason")
+        for config in ("with_skill", "without_skill"):
+            block = data["run_summary"][config]["abstention"]
+            self.assertEqual(block["reasons"]["untyped"], 0, config)
+        excluded = [e["path"] for e in data["exclusions"]]
+        self.assertTrue(
+            any("eval-1-reason-outside-the-enum" in p for p in excluded),
+            excluded)
+
+    def test_the_reason_keys_in_the_json_are_the_enum_plus_untyped(self):
+        """The consumer contract: viewer and schemas.md both read these keys."""
+        self.aggregate("every-reason")
+        data = self.benchmark("every-reason")
+        for config in ("with_skill", "without_skill"):
+            self.assertEqual(
+                list(data["run_summary"][config]["abstention"]["reasons"]),
+                list(ABSTAIN_REASONS) + ["untyped"], config)
 
 
 if __name__ == "__main__":

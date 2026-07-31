@@ -38,6 +38,7 @@ import threading
 import time
 import unittest
 from functools import partial
+from html import unescape as html_unescape
 from http.client import HTTPConnection
 from pathlib import Path
 
@@ -50,6 +51,7 @@ if str(VIEWER_DIR) not in sys.path:
     sys.path.insert(0, str(VIEWER_DIR))
 
 import generate_review as gr  # noqa: E402
+from scripts.validate_grading import ABSTAIN_REASONS  # noqa: E402
 from tests.make_viewer_fixtures import build  # noqa: E402
 
 VIEWER_HTML = (VIEWER_DIR / "viewer.html").read_text(encoding="utf-8")
@@ -61,6 +63,41 @@ BREAKOUT = "</script>"
 def strip_js_comments(js: str) -> str:
     """Drop // line comments so prose about a defect is not read as the defect."""
     return re.sub(r"^\s*//.*$", "", js, flags=re.M)
+
+
+def css_declarations(html: str, selector: str) -> dict:
+    """Every declaration that applies to `selector`, custom properties resolved.
+
+    Comparing class NAMES proves nothing about how two badges look - three
+    distinct classes can resolve to one colour. This reads what the rules
+    actually set and substitutes `var(--x)` against `:root`, so the comparison
+    is between the values a browser would paint (contract C15).
+    """
+    style = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html, re.S))
+    style = re.sub(r"/\*.*?\*/", "", style, flags=re.S)
+
+    variables: dict = {}
+    declarations: dict = {}
+    for block in re.finditer(r"([^{}]+)\{([^{}]*)\}", style):
+        selectors = [s.strip() for s in block.group(1).split(",")]
+        if ":root" not in selectors and selector not in selectors:
+            continue
+        target = variables if ":root" in selectors else declarations
+        for decl in block.group(2).split(";"):
+            if ":" not in decl:
+                continue
+            name, _, value = decl.partition(":")
+            target[name.strip()] = value.strip()
+
+    def resolve(value: str) -> str:
+        for _ in range(4):
+            match = re.search(r"var\((--[\w-]+)\)", value)
+            if not match or match.group(1) not in variables:
+                break
+            value = value.replace(match.group(0), variables[match.group(1)])
+        return value
+
+    return {name: resolve(value) for name, value in declarations.items()}
 
 
 def script_bodies(html: str) -> list[str]:
@@ -1238,42 +1275,34 @@ class OfflineRendering(unittest.TestCase):
         self.assertIn("getDownloadUri(file)", fn[:fn.index("XLSX.read")])
 
 
-class TernaryVerdicts(unittest.TestCase):
-    """Contract C16, executed rather than read.
+class PageScriptHarness:
+    """Run viewer.html's own script under node and read what it produced.
 
-    The page's JavaScript is run under node with a DOM stub, and the resulting
-    HTML is parsed. Per contract C15 the check has to observe the property, not
-    a proxy for it: grepping viewer.html for the word "abstain" would pass over
-    a page that computed a rate of 0% and printed the word in a caption, which
-    is the exact failure this contract closes.
+    Contract C15: a check has to observe the property, not a proxy for it.
+    Grepping viewer.html for the word "abstain" would pass over a page that
+    computed a rate of 0% and printed the word in a caption, and grepping it
+    for "underspecified" would pass over a page that names the reason in a
+    comment and still draws its badge as "reason not recorded". So the page's
+    script is executed against a stubbed document and the resulting HTML is
+    parsed.
+
+    `page` defaults to the checked-in template. Passing a generated page - the
+    one `--static` writes, or the one the server sends - runs the same checks
+    against the artifact a reader actually opens.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.node = shutil.which("node")
-        cls._tmp = tempfile.TemporaryDirectory()
-        cls.root = build(Path(cls._tmp.name))
-        cls.benchmark = json.loads(
-            (cls.root / "abstain-workspace" / "iteration-1" / "benchmark.json")
-            .read_text(encoding="utf-8"))
-        cls.legacy_grading = json.loads(
-            (cls.root / "previous-contract-workspace" / "iteration-1"
-             / "eval-0-boolean-verdicts" / "with_skill" / "run-1"
-             / "grading.json").read_text(encoding="utf-8"))
+    node = shutil.which("node")
 
-    @classmethod
-    def tearDownClass(cls):
-        cls._tmp.cleanup()
-
-    def _run_js(self, call, embedded):
+    def _run_js(self, call, embedded=None, page=None):
         """Execute one render function against a stubbed document."""
         if not self.node:
             self.skipTest("node is not installed")
-        body = "\n".join(script_bodies(VIEWER_HTML))
+        body = "\n".join(script_bodies(page if page is not None else VIEWER_HTML))
         source = body.split("// ---- Start ----")[0]
-        source = source.replace(
-            "/*__EMBEDDED_DATA__*/",
-            "const EMBEDDED_DATA = " + json.dumps(embedded) + ";")
+        if embedded is not None:
+            source = source.replace(
+                "/*__EMBEDDED_DATA__*/",
+                "const EMBEDDED_DATA = " + json.dumps(embedded) + ";")
         harness = (
             "const __sinks = {};\n"
             "function __el(id){ if(!__sinks[id]) __sinks[id] = "
@@ -1295,6 +1324,17 @@ class TernaryVerdicts(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout)
 
+    def _eval_js(self, expression, page=None):
+        """Evaluate one expression inside the page's own script scope.
+
+        Reads a value out of the page rather than out of its source text, so a
+        table that parses differently from how it reads is still caught.
+        """
+        sinks = self._run_js(
+            "__el('probe').innerHTML = JSON.stringify(" + expression + ");",
+            {"runs": []} if page is None else None, page)
+        return json.loads(sinks["probe"])
+
     def _benchmark_html(self, benchmark=None):
         sinks = self._run_js(
             "renderBenchmark();", {"runs": [], "benchmark": benchmark
@@ -1311,6 +1351,38 @@ class TernaryVerdicts(unittest.TestCase):
     @staticmethod
     def _text(html):
         return re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", html)).strip()
+
+    @staticmethod
+    def _plain(html):
+        """_text with character references resolved.
+
+        The page escapes what it writes, so a sentence held in the page's own
+        data comes back through innerHTML as `nobody else&#39;s`. Comparing
+        against the source string needs the reference resolved; comparing
+        against a pre-escaped copy would only assert that two spellings of the
+        escaper agree.
+        """
+        return html_unescape(PageScriptHarness._text(html))
+
+
+class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
+    """Contract C16, executed rather than read."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = build(Path(cls._tmp.name))
+        cls.benchmark = json.loads(
+            (cls.root / "abstain-workspace" / "iteration-1" / "benchmark.json")
+            .read_text(encoding="utf-8"))
+        cls.legacy_grading = json.loads(
+            (cls.root / "previous-contract-workspace" / "iteration-1"
+             / "eval-0-boolean-verdicts" / "with_skill" / "run-1"
+             / "grading.json").read_text(encoding="utf-8"))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
 
     # ---- the all-abstain end-to-end case --------------------------------
 
@@ -1484,6 +1556,247 @@ class TernaryVerdicts(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("previous grading contract", result.stderr)
         self.assertIn("validate_grading", result.stderr)
+
+
+class AbstentionReasonTaxonomy(PageScriptHarness, unittest.TestCase):
+    """Contract C16's typed reasons, and the two states that are not reasons.
+
+    The page shipped with two hand-maintained whitelists - `ABSTAIN_REASON_TEXT`
+    and `abstainReasonOf` - while the contract's enum grew to three. A
+    schema-VALID grading carrying `underspecified` therefore rendered as
+    "abstained: reason not recorded" and "No abstainReason was recorded": the
+    page reporting absent data over present data, which is worse than showing
+    an unknown value plainly, because it accuses the producer of an omission
+    that never happened and sends the reader to fix the grader instead of the
+    sentence.
+
+    Four states are exercised, because the page has to tell all four apart:
+
+        jurisdiction    someone else can rule    -> reassign the judge
+        evidence        this judge could have    -> supply the artifact
+        underspecified  nobody could, ever       -> rewrite the assertion
+        "busy"          recorded, not in the enum
+        (absent)        nothing recorded at all
+
+    Only the last of those five may say nothing was recorded.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = build(Path(cls._tmp.name))
+        cls.workspace = (cls.root / "reason-taxonomy-workspace" / "iteration-1")
+        cls.run_dir = (cls.workspace / "eval-0-four-reason-states"
+                       / "with_skill" / "run-1")
+        cls.benchmark = json.loads(
+            (cls.workspace / "benchmark.json").read_text(encoding="utf-8"))
+        cls.grading = json.loads(
+            (cls.run_dir / "grading.json").read_text(encoding="utf-8"))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    @staticmethod
+    def _badges(html):
+        """{badge label -> modifier class} for every reason badge on a page."""
+        return {label: cls for cls, label in re.findall(
+            r'<span class="assertion-reason ([^"]*)">([^<]*)</span>', html)}
+
+    # ---- the two reason sets are one reason set --------------------------
+
+    def test_the_pages_reason_table_is_the_contracts_enum(self):
+        """The divergence itself, caught by something other than a reader.
+
+        The enum lives in scripts/validate_grading.py and the page cannot
+        import it, so nothing but a test that reads both can notice them
+        drifting apart. This reads the page's table by executing the page.
+        """
+        keys = self._eval_js("Object.keys(ABSTAIN_REASONS)")
+        self.assertEqual(
+            keys, list(ABSTAIN_REASONS),
+            "viewer.html's ABSTAIN_REASONS and validate_grading.ABSTAIN_REASONS "
+            "disagree. They are the same enum on two sides of a boundary the "
+            "page cannot import across: add the reason to the table in "
+            "viewer.html, with its own sentence, repair and `cls`.")
+
+    def test_the_page_has_exactly_one_reason_whitelist(self):
+        """The whitelist is the table's key set, not a second list beside it.
+
+        Executed, not grepped: a leftover second list would be caught here only
+        if it still decided anything, and this asks the page to decide.
+        """
+        verdicts = self._eval_js(
+            "Object.keys(ABSTAIN_REASONS).concat(['busy']).map(r => "
+            "abstainReasonState({abstainReason: r}).known)")
+        self.assertEqual(verdicts, [True] * len(ABSTAIN_REASONS) + [False])
+
+    def test_every_reason_carries_its_own_wording_repair_and_class(self):
+        table = self._eval_js("ABSTAIN_REASONS")
+        for field in ("text", "repair", "cls"):
+            values = [entry[field] for entry in table.values()]
+            self.assertTrue(all(v and v.strip() for v in values), field)
+            self.assertEqual(
+                len(set(values)), len(values),
+                f"two reasons share a {field!r}, so the page cannot be telling "
+                f"a reader what to do differently about them")
+
+    # ---- the grades panel ------------------------------------------------
+
+    def test_each_reason_renders_with_its_own_text(self):
+        text = self._plain(self._grades_html(self.grading))
+        table = self._eval_js("ABSTAIN_REASONS")
+        for reason in ABSTAIN_REASONS:
+            self.assertIn("abstained: " + reason, text, reason)
+            self.assertIn(table[reason]["text"], text, reason)
+            self.assertIn(table[reason]["repair"], text, reason)
+
+    def test_only_the_expectation_with_no_reason_says_nothing_was_recorded(self):
+        """The defect, stated as a count.
+
+        Three recognized reasons, one unrecognized value and one genuine
+        absence: exactly one of the five may be reported as unrecorded.
+        """
+        text = self._text(self._grades_html(self.grading))
+        self.assertEqual(
+            text.count("No abstainReason was recorded"), 1,
+            "a recorded reason was reported as never recorded:\n" + text)
+        self.assertEqual(text.count("abstained: reason not recorded"), 1, text)
+
+    def test_underspecified_is_not_drawn_as_a_variant_of_the_other_two(self):
+        """Its own badge class, and its own resolved colour behind it.
+
+        The class alone proves nothing - three classes can resolve to the same
+        slate - so the stylesheet is read and the values compared after
+        substituting the custom properties they refer to.
+        """
+        badges = self._badges(self._grades_html(self.grading))
+        classes = {reason: badges["abstained: " + reason]
+                   for reason in ABSTAIN_REASONS}
+        self.assertEqual(len(set(classes.values())), len(classes), classes)
+
+        under = css_declarations(VIEWER_HTML,
+                                 ".assertion-reason." + classes["underspecified"])
+        self.assertTrue(under, "the underspecified badge has no style rule")
+        for other in ("jurisdiction", "evidence"):
+            rule = css_declarations(
+                VIEWER_HTML, ".assertion-reason." + classes[other]) \
+                or css_declarations(VIEWER_HTML, ".assertion-reason")
+            for prop in ("color", "background"):
+                self.assertNotEqual(
+                    under.get(prop), rule.get(prop),
+                    f"underspecified shares its {prop} with {other}, so it "
+                    f"reads as a near-miss of a reason with a different repair")
+        self.assertIn("border-color", under,
+                      "underspecified needs a mark of its own, not just a tint")
+
+    def test_the_repair_named_for_underspecified_is_the_readers_own(self):
+        """The reason it earns a slot: the fix belongs to whoever is reading."""
+        repair = self._eval_js("ABSTAIN_REASONS.underspecified.repair")
+        self.assertIn("rewrite the assertion", repair.lower())
+        text = self._eval_js("ABSTAIN_REASONS.underspecified.text").lower()
+        self.assertIn("cannot be graded as written", text)
+
+    def test_an_unrecognized_reason_is_recorded_data_not_absent_data(self):
+        html = self._grades_html(self.grading)
+        badges = self._badges(html)
+        label = next(k for k in badges if "busy" in k)
+        self.assertNotIn("not recorded", label,
+                         "a value the page does not know was reported as absent")
+        # And not wearing a recognized reason's clothes either.
+        known = {badges["abstained: " + r] for r in ABSTAIN_REASONS}
+        self.assertNotIn(badges[label], known)
+        # The sentence under it has to say the value arrived and name it.
+        text = self._text(html)
+        self.assertIn("“busy” was recorded", text)
+
+    # ---- the benchmark tab -----------------------------------------------
+
+    def test_the_comparison_table_marks_and_legend_carry_every_reason(self):
+        html = self._benchmark_html()
+        badges = self._badges(html)
+        for reason in ABSTAIN_REASONS:
+            self.assertIn(reason, badges, reason)
+        self.assertTrue(any("busy" in k for k in badges), badges)
+        # The legend under the table explains each mark it drew, with its
+        # repair - a mark with no entry is a count with no meaning.
+        legend = html[html.index("abstain-legend"):]
+        legend = self._plain(legend[:legend.index("</ul>")])
+        table = self._eval_js("ABSTAIN_REASONS")
+        for reason in ABSTAIN_REASONS:
+            self.assertIn(table[reason]["repair"], legend, reason)
+
+    def test_an_abstained_mark_is_still_an_abstained_mark(self):
+        """A reason is not a fourth verdict. Every ◐ stays in the abstain class.
+
+        Found by mutation while adding the third reason: colouring the MARK by
+        reason rather than the badge would put `underspecified` outside the
+        class the abstain checks assert on, and every one of them would still
+        pass.
+        """
+        # Only the cell marks: each carries a title. The caption below the
+        # table draws a bare ◐ of its own as a key, and counting that one would
+        # make this assertion agree with itself rather than with the data.
+        html = self._benchmark_html()
+        marks = re.findall(r'<span class="([^"]*)" title="[^"]*">◐', html)
+        self.assertEqual(len(marks), 5, marks)
+        for cls in marks:
+            self.assertIn("benchmark-abstain", cls)
+
+    # ---- both viewers ----------------------------------------------------
+
+    def test_all_three_reasons_render_in_the_served_and_the_static_page(self):
+        """The template is the artifact, on both surfaces - proved, not assumed.
+
+        `--static` and the server both hand the reader whatever `generate_html`
+        substituted into viewer.html, so both pages are rendered here and the
+        same three sentences are required from each.
+        """
+        static_path = Path(self._tmp.name) / "reason-taxonomy.html"
+        result = subprocess.run(
+            [sys.executable, str(VIEWER_DIR / "generate_review.py"),
+             str(self.workspace), "--skill-name", "demo",
+             "--static", str(static_path)],
+            capture_output=True, text=True, encoding="utf-8", timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        pages = {"--static": static_path.read_text(encoding="utf-8"),
+                 "served": self._serve_once()}
+
+        table = self._eval_js("ABSTAIN_REASONS")
+        for name, page in pages.items():
+            sinks = self._run_js(
+                "renderGrades(EMBEDDED_DATA.runs.find("
+                "r => r.grading && r.grading.summary.abstained > 0));",
+                None, page)
+            text = self._text(sinks["grades-content"])
+            for reason in ABSTAIN_REASONS:
+                self.assertIn("abstained: " + reason, text, name + "/" + reason)
+                self.assertIn(table[reason]["text"], text, name + "/" + reason)
+            self.assertEqual(text.count("No abstainReason was recorded"), 1,
+                             name + ":\n" + text)
+
+    def _serve_once(self) -> str:
+        """GET / from a real ReviewServer pointed at the fixture workspace."""
+        feedback = self.workspace / "feedback.json"
+        handler = partial(gr.ReviewHandler, self.workspace, "demo", feedback,
+                          {}, self.workspace / "benchmark.json")
+        server = gr.ReviewServer(("127.0.0.1", 0), handler)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            conn = HTTPConnection("127.0.0.1", port, timeout=30)
+            try:
+                conn.request("GET", "/", headers={"Host": "localhost:%d" % port})
+                response = conn.getresponse()
+                self.assertEqual(response.status, 200)
+                body = response.read()
+            finally:
+                conn.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+        return body.decode("utf-8")
 
 
 if __name__ == "__main__":

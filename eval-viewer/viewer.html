@@ -34,6 +34,15 @@
          judge looked and declined to rule. */
       --slate: #5b6b8a;
       --slate-bg: #eef1f7;
+      /* Contract C16's third abstention REASON, which is not a third verdict.
+         `jurisdiction` and `evidence` are repaired by somebody other than the
+         person reading this page — reassign the judge, capture the artifact —
+         so they share the slate every abstention is drawn in. `underspecified`
+         is repaired by rewriting the sentence, and the only person who can do
+         that is whoever wrote the eval. It gets a colour of its own so it
+         cannot be skimmed as a near-miss of the other two. */
+      --violet: #6b4fa0;
+      --violet-bg: #f1ecf9;
       --header-bg: #141413;
       --header-text: #faf9f5;
       --radius: 6px;
@@ -368,15 +377,17 @@
     .assertion-status.pass { color: var(--green); }
     .assertion-status.fail { color: var(--red); }
     .assertion-status.abstain { color: var(--slate); }
-    /* The typed reason travels with every abstention. `jurisdiction` and
-       `evidence` call for different fixes — rewrite the assertion, or capture
-       more from the run — so an abstention rendered without its reason has
-       thrown away the actionable half. */
+    /* The typed reason travels with every abstention. Each reason names a
+       different repair, performed by a different person, so an abstention
+       rendered without its reason has thrown away the actionable half. The
+       modifier classes below are named by the `cls` field of the one
+       ABSTAIN_REASONS table in the script — never by a second list here. */
     .assertion-reason {
       display: inline-block;
       margin-left: 0.375rem;
       padding: 0 0.375rem;
       border-radius: var(--radius);
+      border: 1px solid transparent;
       background: var(--slate-bg);
       color: var(--slate);
       font-family: var(--font-sans);
@@ -384,6 +395,54 @@
       font-weight: 600;
       vertical-align: middle;
     }
+    /* Repaired by reassigning the judge, or by capturing what the run did not
+       produce. Either way the next move belongs to whoever runs the panel or
+       the harness, so both stay in the abstention's own slate. */
+    .assertion-reason.reason-jurisdiction,
+    .assertion-reason.reason-evidence {
+      background: var(--slate-bg);
+      color: var(--slate);
+    }
+    /* Repaired only by rewriting the assertion. No judge, with any evidence,
+       could rule on it — so this is not a weaker `jurisdiction` and must not
+       be drawn as one. Filled and outlined in its own colour, because the
+       reader of this page is the person who has to act. */
+    .assertion-reason.reason-underspecified {
+      background: var(--violet-bg);
+      color: var(--violet);
+      border-color: var(--violet);
+    }
+    /* A reason string this page does not recognize. It is data — the producer
+       wrote it down — so it must not borrow a recognized reason's colour and
+       must not be drawn as the grey this page reserves for "never recorded". */
+    .assertion-reason.reason-unrecognized {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--text-muted);
+      border-style: dashed;
+    }
+    /* Nothing was recorded. This is the only one of the four that may be grey. */
+    .assertion-reason.reason-missing {
+      background: var(--border);
+      color: var(--text-muted);
+    }
+    /* The repair sits under the reason, in the reason's own colour. Typing an
+       abstention is only worth anything if the three types lead to three
+       different actions, and this line is where the action is named. */
+    .assertion-repair {
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+      color: var(--slate);
+    }
+    .assertion-repair.reason-underspecified { color: var(--violet); font-weight: 600; }
+    .assertion-repair.reason-unrecognized { color: var(--text); }
+    .assertion-repair.reason-missing { color: var(--text-muted); }
+    .abstain-legend {
+      list-style: none;
+      margin-top: 0.375rem;
+    }
+    .abstain-legend li { margin-top: 0.25rem; }
     .assertion-evidence {
       color: var(--text-muted);
       font-size: 0.75rem;
@@ -818,9 +877,9 @@
     // ---- Verdicts (contract C16) -------------------------------------------
     //
     // Three states, and the third is not "unknown". `abstain` means the judge
-    // looked at this expectation and declined to rule on it — because it was
-    // outside its jurisdiction, or because the evidence a ruling needed was not
-    // in the artifacts. Under the previous contract there were two states and
+    // looked at this expectation and declined to rule on it — for one of the
+    // typed reasons in ABSTAIN_REASONS below, each of which names a different
+    // repair. Under the previous contract there were two states and
     // the grader prompt closed the gap with "when you genuinely cannot tell, it
     // fails", so a verified-false check and an uncheckable one produced the
     // identical byte and this page drew them the same red ✗.
@@ -831,18 +890,71 @@
     //  * it must not be drawn as UNKNOWN either, because grey on this page
     //    means "never recorded" and this was recorded, deliberately, with a
     //    reason attached;
-    //  * and the reason has to be on screen, because `jurisdiction` and
-    //    `evidence` call for different fixes.
+    //  * and the reason has to be on screen, because each typed reason names a
+    //    different repair, performed by a different person.
     const VERDICT_ICON = { pass: "✓", fail: "✗", abstain: "◐" };
     const VERDICT_CELL_CLASS = {
       pass: "benchmark-delta-better",
       fail: "benchmark-delta-worse",
       abstain: "benchmark-abstain",
     };
-    const ABSTAIN_REASON_TEXT = {
-      jurisdiction: "outside what this judge could rule on",
-      evidence: "in scope, but the evidence a ruling needed was not in hand",
+
+    // ---- The typed reasons, in one table -----------------------------------
+    //
+    // Everything this page knows about an abstention reason is here: the
+    // whitelist, the sentence a reader gets, the repair that reason calls for,
+    // and the class that colours it. There is no second list anywhere — adding
+    // a reason is one entry, and removing this table's authority over any of
+    // those four is how the last one went wrong.
+    //
+    // It went wrong exactly once and in exactly this shape: the contract's enum
+    // grew to three while two hand-maintained whitelists here stayed at two, so
+    // a schema-VALID grading carrying `underspecified` rendered as "abstained:
+    // reason not recorded". That is present data displayed as absent — worse
+    // than an unknown value shown plainly, because it tells the reader the
+    // producer failed to record something the producer did record, and sends
+    // them to fix the grader instead of the sentence.
+    //
+    // The enum itself lives in scripts/validate_grading.py (ABSTAIN_REASONS)
+    // and this page cannot import it. tests/test_eval_viewer.py runs this
+    // script under node, reads Object.keys(ABSTAIN_REASONS) back out, and
+    // fails when the two sets differ — so a fourth reason is caught by a test
+    // rather than by whoever eventually notices a badge that reads "not
+    // recorded".
+    const ABSTAIN_REASONS = {
+      jurisdiction: {
+        text: "outside what this judge could rule on",
+        repair: "Fix: reassign the judge. A standard that settles this exists, "
+              + "and somebody who is not this judge holds it.",
+        cls: "reason-jurisdiction",
+      },
+      evidence: {
+        text: "in scope, but the evidence a ruling needed was not in hand",
+        repair: "Fix: supply the missing artifact — a transcript, the input "
+              + "file — and grade the run again.",
+        cls: "reason-evidence",
+      },
+      underspecified: {
+        text: "this statement cannot be graded as written: no judge, with any "
+            + "evidence, could rule on it, because it names no property of the "
+            + "artifact",
+        repair: "Fix: rewrite the assertion. This repair is yours and nobody "
+              + "else's — reassigning the judge and capturing more from the "
+              + "run both leave it exactly as undecidable as it is now.",
+        cls: "reason-underspecified",
+      },
     };
+
+    function knownReason(reason) {
+      return Object.prototype.hasOwnProperty.call(ABSTAIN_REASONS, reason)
+        ? ABSTAIN_REASONS[reason] : null;
+    }
+
+    function reasonNames() {
+      const keys = Object.keys(ABSTAIN_REASONS);
+      if (keys.length < 2) return keys.join("");
+      return keys.slice(0, -1).join(", ") + " or " + keys[keys.length - 1];
+    }
 
     function verdictOf(exp) {
       if (!exp || typeof exp !== "object") return null;
@@ -850,9 +962,64 @@
       return (v === "pass" || v === "fail" || v === "abstain") ? v : null;
     }
 
-    function abstainReasonOf(exp) {
-      const r = exp && exp.abstainReason;
-      return (r === "jurisdiction" || r === "evidence") ? r : null;
+    // Three outcomes, deliberately not two. A reason string this page does not
+    // recognize was RECORDED — it simply is not one of the reasons this build
+    // knows — and folding it into "nothing was recorded" is the same class of
+    // lie as folding `underspecified` into `jurisdiction`: it reports absent
+    // data where there is present data, and points the reader at the wrong
+    // producer.
+    function abstainReasonState(exp) {
+      const raw = exp ? exp.abstainReason : null;
+      if (typeof raw === "string" && knownReason(raw)) {
+        return { key: raw, recorded: raw, known: true };
+      }
+      const recorded = (raw === null || raw === undefined || raw === "")
+        ? null : String(raw);
+      return { key: null, recorded: recorded, known: false };
+    }
+
+    // There is deliberately no second accessor returning just the key. Every
+    // caller goes through abstainReasonState and then abstainBadge, because a
+    // caller holding only the key cannot tell an unrecognized reason from an
+    // absent one — which is the distinction this page got wrong.
+
+    // One renderer, used by the per-run grades panel and by the Benchmark
+    // tab's comparison table. They phrased this separately before, and only
+    // one of the two was ever kept current.
+    function abstainBadge(state) {
+      if (state && state.known) {
+        const entry = ABSTAIN_REASONS[state.key];
+        return {
+          cls: entry.cls,
+          short: state.key,
+          label: "abstained: " + state.key,
+          detail: entry.text,
+          repair: entry.repair,
+        };
+      }
+      if (state && state.recorded !== null && state.recorded !== undefined) {
+        return {
+          cls: "reason-unrecognized",
+          short: state.recorded + " (unrecognized)",
+          label: "abstained: " + state.recorded + " (unrecognized)",
+          detail: "An abstainReason of “" + state.recorded + "” was recorded, "
+                + "and it is not one of the reasons this page knows ("
+                + reasonNames() + "). The producer wrote it down; what is "
+                + "missing is this page's meaning for it, not the value.",
+          repair: "Fix: either the grader is emitting a reason the contract "
+                + "does not define, or this page is older than the contract. "
+                + "scripts/validate_grading.py holds the list both sides are "
+                + "meant to agree on.",
+        };
+      }
+      return {
+        cls: "reason-missing",
+        short: "untyped",
+        label: "abstained: reason not recorded",
+        detail: "No abstainReason was recorded at all. An untyped abstention "
+              + "cannot be told from a judge that stopped ruling on anything.",
+        repair: "",
+      };
     }
 
     // A boolean `passed` with no `verdict` is not a malformed check — it is the
@@ -1196,7 +1363,8 @@
           html += '<p class="unknown">' + escapeHtml(
             "Every check in this run abstained, so there is no pass rate to "
             + "report. This is not a score of zero: nothing was ruled against "
-            + "the run. Each check below says which of the two reasons applied.")
+            + "the run. Each check below carries the reason that applied and "
+            + "the repair that reason calls for.")
             + '</p>';
         }
 
@@ -1224,18 +1392,20 @@
               + '&ldquo;text&rdquo; field for it)</span>';
           }
           if (verdict === "abstain") {
-            const reason = abstainReasonOf(exp);
-            html += '<span class="assertion-reason">' + escapeHtml(
-              reason ? "abstained: " + reason : "abstained: reason not recorded")
-              + '</span>';
-            html += '<div class="assertion-evidence">' + escapeHtml(
-              reason ? ABSTAIN_REASON_TEXT[reason]
-                     // Schema-invalid gradings never reach a benchmark, so
-                     // this branch means a hand-edited file. Say so rather
-                     // than presenting an untyped abstention as a normal one.
-                     : "No abstainReason was recorded. An untyped abstention "
-                       + "cannot be told from a judge that stopped ruling on "
-                       + "anything.") + '</div>';
+            // Everything on these three lines — the badge's colour, its
+            // wording, the meaning, the repair — comes out of ABSTAIN_REASONS.
+            // Schema-invalid gradings never reach a benchmark, so an
+            // unrecognized or absent reason means a hand-edited file, and the
+            // two are reported as the different things they are.
+            const badge = abstainBadge(abstainReasonState(exp));
+            html += '<span class="assertion-reason ' + badge.cls + '">'
+              + escapeHtml(badge.label) + '</span>';
+            html += '<div class="assertion-evidence">' + escapeHtml(badge.detail)
+              + '</div>';
+            if (badge.repair) {
+              html += '<div class="assertion-repair ' + badge.cls + '">'
+                + escapeHtml(badge.repair) + '</div>';
+            }
           }
           if (exp.evidence) {
             html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
@@ -2210,6 +2380,11 @@
       let untextedCount = 0;
       let abstainCount = 0;
       let legacyCount = 0;
+      // Which reasons this eval actually produced, so the legend under the
+      // table names those and only those. Keyed by the badge's short form, so
+      // an unrecognized value gets its own entry instead of being pooled with
+      // the untyped one.
+      const seenBadges = new Map();
 
       for (const config of configGroups) {
         for (let ri = 0; ri < byConfig[config].length; ri++) {
@@ -2236,11 +2411,16 @@
             sources[key].add(source);
             if (!cells[key][config]) cells[key][config] = [];
             const verdict = verdictOf(exp);
-            if (verdict === "abstain") abstainCount += 1;
+            let badge = null;
+            if (verdict === "abstain") {
+              abstainCount += 1;
+              badge = abstainBadge(abstainReasonState(exp));
+              if (!seenBadges.has(badge.short)) seenBadges.set(badge.short, badge);
+            }
             if (isLegacyExpectation(exp)) legacyCount += 1;
             cells[key][config].push({
               verdict: verdict,
-              reason: abstainReasonOf(exp),
+              badge: badge,
               evidence: exp.evidence || "",
               run_number: run.run_number,
             });
@@ -2317,20 +2497,22 @@
               // " and ' so it cannot close the attribute and add a handler.
               let tip = "Run " + (entry.run_number == null ? "?" : entry.run_number)
                 + ": " + (entry.evidence || "(no evidence recorded)");
-              if (entry.verdict === "abstain") {
+              if (entry.badge) {
                 // The typed reason is on the mark itself, not only in a
                 // paragraph under the table: this cell is what a reader
                 // compares across configurations, and an abstention without
-                // its reason is not comparable to anything.
-                tip = "Abstained ("
-                  + (entry.reason ? entry.reason + " — " + ABSTAIN_REASON_TEXT[entry.reason]
-                                  : "no abstainReason recorded")
-                  + "). " + tip;
+                // its reason is not comparable to anything. The repair rides
+                // along, because the reason is only useful for what it tells
+                // the reader to do next.
+                tip = "Abstained (" + entry.badge.short + ") — "
+                  + entry.badge.detail
+                  + (entry.badge.repair ? " " + entry.badge.repair : "")
+                  + " " + tip;
               }
               html += '<span class="' + cls + '" title="' + escapeHtml(tip) + '">' + icon;
-              if (entry.verdict === "abstain") {
-                html += '<span class="assertion-reason">' + escapeHtml(
-                  entry.reason || "untyped") + '</span>';
+              if (entry.badge) {
+                html += '<span class="assertion-reason ' + entry.badge.cls + '">'
+                  + escapeHtml(entry.badge.short) + '</span>';
               }
               html += "</span> ";
             }
@@ -2349,15 +2531,31 @@
         + escapeHtml(UNKNOWN) + ' means this configuration reported no result for that exact '
         + 'check.</p>';
       if (abstainCount > 0) {
-        html += '<p class="benchmark-caption">'
+        // The legend lists the reasons THIS eval produced, in the order the
+        // reason table declares them, with the unrecognized and untyped ones
+        // after. Naming all of them on every table would be noise; naming only
+        // some of them from a hand-written sentence is how `underspecified`
+        // went missing in the first place.
+        const legend = [];
+        for (const key of Object.keys(ABSTAIN_REASONS)) {
+          if (seenBadges.has(key)) legend.push(seenBadges.get(key));
+        }
+        for (const [short, badge] of seenBadges) {
+          if (!knownReason(short)) legend.push(badge);
+        }
+        html += '<div class="benchmark-caption">'
           + '<span class="benchmark-abstain">' + VERDICT_ICON.abstain + '</span> '
           + escapeHtml(abstainCount + " check(s) were abstained on: the judge looked and declined "
-            + "to rule, tagged jurisdiction (outside what it could rule on) or evidence (in scope, "
-            + "but the run did not produce what a ruling needed). They are neither passes nor "
-            + "failures and are in neither side of the pass rate. A row of "
-            + VERDICT_ICON.abstain + " is not a row the skill failed — it is a check nobody could "
-            + "settle, and the tag says whether to fix the assertion or fix the run.")
-          + '</p>';
+            + "to rule. They are neither passes nor failures and are in neither side of the pass "
+            + "rate. A row of " + VERDICT_ICON.abstain + " is not a row the skill failed — it is a "
+            + "check nobody settled, and the tag on it says whose move it is:")
+          + '<ul class="abstain-legend">'
+          + legend.map(badge =>
+              '<li><span class="assertion-reason ' + badge.cls + '">'
+              + escapeHtml(badge.short) + '</span> ' + escapeHtml(
+                badge.detail + (badge.repair ? " " + badge.repair : "")) + '</li>')
+            .join("")
+          + '</ul></div>';
       }
       if (legacyCount > 0) {
         html += '<div class="benchmark-warning">' + escapeHtml(

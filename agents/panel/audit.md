@@ -74,7 +74,18 @@ The tokens are invariant; what follows is how they land on *this* kind of panel.
   this domain that includes: a `pass` whose evidence string restates the statement in different words
   rather than reproducing anything locatable; a `pass` over an artifact that satisfies the statement's
   wording and not its point; a `fail` whose cited class does not match the condition the class defines;
-  a `selfReport` entry that records an artifact's claim as verified by quoting the artifact making it.
+  a `selfReport` entry that records an artifact's claim as verified by quoting the artifact making it;
+  and an `abstain` / `underspecified` whose evidence names no open term. That last one is the
+  cheapest verdict on the schema — it locates the defect in the eval author's sentence, so it costs
+  the seat nothing and reads as rigour. The boundary puts it at question 3 of the typing ladder and
+  requires the open word be quoted; an `underspecified` that says only *"too vague to decide"*, or one
+  filed against a statement whose terms the material plainly fixes, is that requirement met by the
+  letter and not at all.
+
+  Read the abstention **reasons against the ladder**, seat by seat, not just the verdicts. A seat
+  whose abstentions are all one reason has either met a very uniform eval set or stopped running the
+  questions; a seat that answered question 2 with no holder it could name has claimed
+  `underspecified` by default, which is the failure the affirmative question 3 exists to prevent.
 - **`convention_blind`** — a seat applied a general standard where the domain's own conventions govern,
   or the reverse. Deciding a packaged format by reading its container bytes, treating a domain-normal
   encoding as damage, or holding a soft predicate the eval author never defined to a threshold the seat
@@ -88,6 +99,10 @@ The tokens are invariant; what follows is how they land on *this* kind of panel.
   A statement where every seat abstained to another seat's jurisdiction and those seats abstained too —
   the warrant is real but distributed across the cover's blind spots and fell through. Name the one
   fact that would have settled it and which seat's `inputs` would have had to widen.
+
+  An item every seat called `underspecified` is **not** this class. Nothing was missed: the statement
+  named nothing to reach. It belongs under `## Expectation-set findings`, against the statement, where
+  the author reads it — and mis-filing it here reports a hole in the cover that does not exist.
 - **`none`** — the seat did what it was composed to do on the evidence it was given. A panel with no
   findings is a normal outcome and is worth more than a manufactured one.
 
@@ -118,6 +133,11 @@ numbers:
 
 - decisive verdicts with a tool-use count that cannot account for opening the granted material;
 - `abstain` on `evidence` where the material was in `inputs` and the telemetry shows it was not read;
+- `abstain` on `underspecified` bought with no reading at all. The reason asserts that no judge, with
+  any evidence, could rule; a seat that reached it without opening the material has made a claim about
+  every possible judge from the statement's wording alone. Sometimes that is right — a comparative
+  with no baseline is visible in the sentence — so say which reading the numbers support, and whether
+  the evidence string quotes an open term or only asserts one;
 - a seat whose tokens are far below its peers on the same statement list, or far above with no
   corresponding evidence detail;
 - a duration inconsistent with the number of files its evidence strings cite.
@@ -132,6 +152,15 @@ Check that the orchestrator composed by the gates rather than by majority: that 
 outvoted, that a withheld conflict was recorded rather than blended, that an all-abstain item was
 disclosed rather than presented as neutral silence, and that `pass_rate` is `null` where its
 denominator is zero rather than `0.0`.
+
+Check the composed abstention reasons against the ordering the frame fixes — `evidence`, then
+`underspecified`, then `jurisdiction`, first match over the abstaining seats. Each one orders a
+different repair from a different person, so a mis-ordered composition is not a cosmetic error: an
+item composed to `underspecified` where a seat said `evidence` sends the author to rewrite an
+assertion that a captured transcript would have settled, and the rewrite destroys the original wording
+while leaving nothing in the record that says why. Check too that every seat's own reason survives in
+`seatAbstentions` verbatim, including the ones the composed reason overrode — a panel that split on
+which reason applied is a finding, and the composed byte alone cannot show it.
 
 ### Step 5: Render findings
 

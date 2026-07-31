@@ -585,5 +585,118 @@ class AnalyzerBenchmarkKeysTest(unittest.TestCase):
         )
 
 
+# --------------------------------------------------------------------------
+# 6. The abstention-typing procedure is stated, and stated the same way
+# --------------------------------------------------------------------------
+
+class AbstentionTypingProcedureTest(unittest.TestCase):
+    """Three reasons over an unstated boundary collect habits, not facts.
+
+    Contract C16 names three typed abstention reasons. The definitions alone do
+    not separate them - "outside what this judge can rule on" and "no judge
+    could rule" are both true of a great many statements, so a judge picking the
+    closest-sounding description picks by temperament and two judges split the
+    same eval set differently. This was found by an agent building a fresh
+    corpus, which had to invent its own test to proceed and said so.
+
+    So the boundary is a procedure - three questions, first `yes` decides - and
+    it has to be present in every file a judge reads, in the same terms. Prose,
+    not shape, and pinned for the same reason the ternary-vocabulary sentences
+    above are: it is a rule the model follows rather than a field it emits, and
+    losing it leaves a JSON block that still looks correct over a field nobody
+    can type consistently.
+    """
+
+    JUDGE_FACING = ("grader.md", "panel/seat-frame.md")
+    ALL = JUDGE_FACING + ("panel/composer.md",)
+
+    @classmethod
+    def setUpClass(cls):
+        cls.flat = {
+            name: re.sub(r"\s+", " ", (AGENTS / name).read_text(encoding="utf-8"))
+            for name in cls.ALL
+        }
+
+    def assertSaid(self, name, pattern, note):
+        self.assertRegex(
+            self.flat[name], pattern,
+            f"agents/{name} no longer states {note} -- the abstention-typing "
+            f"procedure has to survive in every file that types an abstention",
+        )
+
+    def test_every_file_names_all_three_reasons(self):
+        for name in self.ALL:
+            for reason in ("jurisdiction", "evidence", "underspecified"):
+                with self.subTest(prompt=name, reason=reason):
+                    self.assertIn(reason, self.flat[name],
+                                  f"agents/{name} never names {reason}")
+
+    def test_the_three_questions_are_present_in_order(self):
+        """Q1 missing-artifact, Q2 standard-held-by-someone, Q3 quotable term."""
+        for name in self.ALL:
+            text = self.flat[name]
+            with self.subTest(prompt=name):
+                q1 = text.find("this run could have produced")
+                q2 = text.find("already exist")
+                q3 = text.find("open term")
+                self.assertNotEqual(q1, -1, f"agents/{name} lost question 1")
+                self.assertNotEqual(q2, -1, f"agents/{name} lost question 2")
+                self.assertNotEqual(q3, -1, f"agents/{name} lost question 3")
+                self.assertLess(q1, q2, f"agents/{name}: question 1 no longer "
+                                        f"precedes question 2, and the order is "
+                                        f"what decides")
+                self.assertLess(q2, q3, f"agents/{name}: question 2 no longer "
+                                        f"precedes question 3")
+
+    def test_the_fall_through_is_jurisdiction_not_underspecified(self):
+        """The comfortable reason must be earned; the humble one is the residue.
+
+        If nothing answers, the reason is `jurisdiction`: failing to find a
+        standard is not establishing that none exists. Flip this and
+        `underspecified` becomes the exit for every statement a judge could not
+        be bothered to decide.
+        """
+        for name in self.ALL:
+            self.assertSaid(
+                name,
+                r"(cannot answer any of the three|none answerable|"
+                r"none of the three answerable)[^.]{0,120}jurisdiction",
+                "that an unanswerable ladder falls through to `jurisdiction`")
+
+    def test_the_two_anti_collapse_clauses_are_stated(self):
+        """Without them one question swallows the others.
+
+        A standard supplied from outside re-described as a missing document
+        turns every jurisdiction case into `evidence`; a requester's unfixed
+        preference treated as a standard turns every underspecified case into
+        `jurisdiction`.
+        """
+        for name in self.JUDGE_FACING:
+            self.assertSaid(
+                name, r"handed [^.]{0,60}is not evidence",
+                "that a standard handed in from outside is not evidence")
+            self.assertSaid(
+                name, r"preference nobody has fixed is not a standard",
+                "that a preference nobody has fixed is not a standard")
+
+    def test_underspecified_must_quote_the_open_term(self):
+        for name in self.ALL:
+            self.assertSaid(
+                name, r"(quote|name|carry|naming) the open term|"
+                      r"open term[^.]{0,80}(quote|evidence)",
+                "that `underspecified` requires the open term be quoted")
+
+    def test_the_composition_ordering_matches_the_ladder(self):
+        """One rule at both scales, or it drifts at one of them."""
+        frame = self.flat["panel/seat-frame.md"]
+        evidence = frame.find("| 1 | `evidence`")
+        under = frame.find("| 2 | `underspecified`")
+        juris = frame.find("| 3 | `jurisdiction`")
+        self.assertNotEqual(evidence, -1,
+                            "seat-frame.md lost the composed-reason ordering")
+        self.assertLess(evidence, under)
+        self.assertLess(under, juris)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

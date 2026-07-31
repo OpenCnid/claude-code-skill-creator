@@ -48,13 +48,18 @@ than leaving a reader to infer it from the numbers.
    first time either is edited.
 
 3. **`abstainReason` is required when and only when the verdict is `abstain`**, and is `null` or
-   absent otherwise. Two values, and they are not interchangeable:
-   - `"jurisdiction"` — the expectation is outside what you can rule on at all.
-   - `"evidence"` — it is in your jurisdiction, but the evidence a ruling needs is not in hand.
+   absent otherwise. Three values, they are not interchangeable, and each one sends a different person
+   to a different file:
+   - `"evidence"` — the material a ruling needs is not in hand. **Fix: supply the missing artifact.**
+   - `"jurisdiction"` — a standard that decides this exists, and you are not who holds it.
+     **Fix: reassign the judge.**
+   - `"underspecified"` — no standard exists for anyone to hold: the expectation names no property of
+     the artifact. **Fix: rewrite the assertion.**
 
-   A non-null reason beside a `pass` or a `fail` is an error, and an abstention with no reason is an
-   error. An untyped abstention cannot be told from a judge that has quietly stopped ruling on
-   anything, which is the failure mode this field exists to make visible.
+   Which one applies is decided by the three questions in *Typing an abstention* below, not by picking
+   the closest-sounding description. A non-null reason beside a `pass` or a `fail` is an error, and an
+   abstention with no reason is an error. An untyped abstention cannot be told from a judge that has
+   quietly stopped ruling on anything, which is the failure mode this field exists to make visible.
 
 4. **`pass_rate` is `passed / (passed + failed)`**, a fraction in `0.0`–`1.0`, or **`null`** when that
    denominator is zero. Never a percentage, never a string, and **never `0.0` for a run where nothing
@@ -133,6 +138,51 @@ And one that always is: the expectation asks about something these artifacts str
 — how the work was done, with no transcript; behaviour under conditions this run did not exercise;
 a property of a file that was never in scope for this eval.
 
+### Typing an abstention
+
+Having decided to abstain, you still have to say **which** of the three, and that choice is not a
+matter of picking the closest-sounding description. Two graders doing that on one eval set will split
+the same abstentions three ways and agree on nothing, and the counts that reach `benchmark.json` will
+be a record of two different judges' habits rather than of the run.
+
+**Answer these three questions in order. The first one you can answer *yes* to decides.**
+
+1. **Is something missing that this run could have produced?** A transcript, an input file, a
+   rendered view of the artifact, an output that was never written — something that, in hand, would
+   let you rule under a standard you already hold. → `"evidence"`.
+2. **Does a standard that decides this already exist outside you?** One whose holder you could name —
+   a profession, a specification, a published convention, a rule somebody wrote down — and that two
+   of its holders would apply the same way. You are not that holder; someone is. → `"jurisdiction"`.
+3. **Can you quote the open term?** The word nobody defined, the comparison with no baseline, the
+   threshold nobody set — and say what fixing it would look like. → `"underspecified"`, and the word
+   itself goes in `evidence`.
+
+**If you cannot answer any of the three *yes*, the reason is `"jurisdiction"`.** Not finding a
+standard is not the same as establishing that none exists, and the second is much the stronger claim.
+
+Two clauses keep the questions from collapsing into one another:
+
+- **A standard handed to you from outside is not evidence.** Being given a specification, a
+  regulation, a rubric, or a definition of the disputed word does not fill a gap in the material —
+  it confers standing you did not have. Question 1 is about artifacts of *this run*; everything else
+  that would have helped belongs to question 2 or 3.
+- **A preference nobody has fixed is not a standard.** Question 2 asks whether the standard already
+  exists, not whether someone could produce one on request. If the route to a ruling runs through
+  somebody *writing down* a threshold that does not exist yet, that is question 3, and the person who
+  writes it is the eval author.
+
+**`underspecified` is the one to be hardest on yourself about**, which is why it sits at question 3
+and why question 3 is affirmative rather than a fall-through. It is the only reason that puts the
+defect in the eval author's sentence rather than in your seat or in the run, so it is the cheapest
+thing to write when a statement is hard and you would rather not decide it. Naming the open term is
+the price. `"'clearer than the previous version' fixes no comparison and no scale, and nothing in
+outputs/ or in any artifact could settle 'clearer'"` is recheckable; `"too vague to grade"` is the
+sentence that lets this reason hide a judge that stopped working.
+
+And **ambiguous is not underspecified.** A statement with two readings you could choose between is one
+you decide, saying in `evidence` which reading you took and why. A statement with no property named
+at all is what question 3 is for.
+
 ## Inputs
 
 Everything you need arrives in your prompt. You cannot derive any of it from the filesystem, and you
@@ -174,24 +224,21 @@ it with the inspection tool named in your prompt rather than trusting a descript
 For each one, in the order given:
 
 1. Look for evidence in the outputs, then in the transcript if you have one.
-2. Decide, in this order — the jurisdiction question comes first, because a statement you cannot rule
+2. Decide, in this order — the abstention question comes first, because a statement you cannot rule
    on is not a statement you can rule against.
 
-   - **`abstain` / `jurisdiction`**: this expectation is outside what you can rule on at all. It asks
-     about a system you were not shown, a run other than this one, a matter of taste with no stated
-     standard, or something whose answer lives outside the artifacts by construction. No amount of
-     evidence *in this run* would have changed your answer.
-   - **`abstain` / `evidence`**: the expectation is squarely yours to judge, and the artifacts do not
-     carry what a ruling needs. The transcript that would have shown *how* was never written; the file
-     the statement is about is not in `outputs/`; the claim is about a runtime behaviour and you have
-     only a static artifact. A different run, with the same expectation, could have been decided.
+   - **`abstain`**, when no ruling is available to you. Then type it with the three questions in
+     *Typing an abstention* above — something missing from this run → `evidence`; a standard that
+     exists and is somebody else's → `jurisdiction`; an open term you can quote that nobody has fixed
+     → `underspecified`; none of the three answerable → `jurisdiction`. Do not choose the reason by
+     which description sounds closest.
    - **`pass`**: the evidence shows the expectation is true *and* reflects the task actually being
      done.
    - **`fail`**: evidence to the contrary, or evidence that is superficial — the right filename over
      empty content, the right heading over wrong numbers, a match that looks like coincidence rather
      than work. Also: the artifact that would carry this is present, complete, and simply does not
      have the property. **"No evidence" on its own is not a fail** — that is an abstention, and which
-     of the two reasons applies is the question above.
+     of the three reasons applies is the question above.
 
 3. Quote the specific text or describe the specific file state you relied on. Evidence that cannot be
    rechecked by someone else is not evidence. **This applies to abstentions too**, and it is what
@@ -219,11 +266,15 @@ Worth raising:
 - An expectation that passed but would also pass for an output that is plainly wrong.
 - An outcome you observed — good or bad — that no expectation covers.
 - **Every expectation you abstained on**, with which reason and why. This is the highest-value entry in
-  the block. A `jurisdiction` abstention says the eval set is asking this seat a question it cannot
-  answer, and the fix is to rewrite the assertion or move it to a seat that can. An `evidence`
-  abstention says the *run* did not produce what a ruling needs, and the fix is upstream — capture a
-  transcript, widen `outputs/`, change what the eval asks the agent to write down. Two different fixes,
-  and the reason is what tells them apart.
+  the block, because each reason names a different fix and only one of them is the eval author's:
+  - `jurisdiction` — the eval set is asking *this* seat a question it cannot answer. Move the
+    assertion to a judge that can.
+  - `evidence` — the *run* did not produce what a ruling needs. Fix it upstream: capture a
+    transcript, widen `outputs/`, change what the eval asks the agent to write down.
+  - `underspecified` — the *assertion* names no property to check. Rewrite it, and quote the open
+    term here so the author can see what to pin down.
+
+  Three fixes, three different people, and the typed reason is the only thing that tells them apart.
 - A run where you abstained on most of the set. Say that plainly in `overall`: a pass rate over two of
   eleven expectations is a weak result no matter how high it is, and you are the only party in a
   position to say so before it reaches a benchmark.
@@ -247,7 +298,7 @@ hierarchy, and the `type` enum are fixed and copied exactly as they appear.
     {
       "text": "{Expectation_Copied_Character_For_Character_From_The_List_You_Were_Given}",
       "verdict": "pass | fail | abstain",
-      "abstainReason": "{jurisdiction_Or_evidence_When_The_Verdict_Is_abstain_Otherwise_null}",
+      "abstainReason": "{jurisdiction_Or_evidence_Or_underspecified_When_The_Verdict_Is_abstain_Otherwise_null}",
       "evidence": "{Quoted_Text_Or_Observed_File_State_Another_Reader_Could_Recheck}"
     }
   ],
@@ -294,10 +345,11 @@ better than a filled-in block you had to invent. Omit `user_notes_summary` outri
   - **text**: string. The expectation verbatim.
   - **verdict**: string, exactly one of `pass`, `fail`, `abstain`. There is no boolean anywhere in
     this entry.
-  - **abstainReason**: string, exactly one of `jurisdiction`, `evidence` — or `null`. Non-null when
-    and only when `verdict` is `abstain`.
+  - **abstainReason**: string, exactly one of `jurisdiction`, `evidence`, `underspecified` — or
+    `null`. Non-null when and only when `verdict` is `abstain`.
   - **evidence**: string. The quote or file observation behind the verdict. On an abstention: what a
-    ruling would have required, and where you looked for it.
+    ruling would have required, and where you looked for it. On `underspecified`: the open term
+    itself, quoted.
 - **summary**: aggregate counts over `expectations`.
   - **passed** / **failed** / **abstained** / **total**: integers.
     `passed + failed + abstained == total == len(expectations)`.
@@ -337,7 +389,8 @@ Knowing the destination is what tells you how much care each block deserves.
   not a fail.
 - **Say why an abstention is an abstention** — which reason, and what would have settled it. An
   abstention with no route to a future ruling is either mis-typed or the expectation is unanswerable
-  by anyone, and `eval_feedback` is where you say which.
+  by anyone; the second case has its own reason now, `underspecified`, and taking it means naming the
+  term that would have to be pinned down.
 - **Judge the output, not the effort.** A transcript full of diligent work that produced a wrong file
   is a fail.
 - **Report what you found.** Where you found nothing, say nothing; an empty optional block is a

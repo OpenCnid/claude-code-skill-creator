@@ -33,7 +33,9 @@ Placement is now checked as hard as content:
     graded - a string or a percentage is an error, not a coercion;
   * verdicts are ternary (contract C16). `verdict` is one of `pass`, `fail`,
     `abstain`; `abstainReason` is required when and only when the verdict is
-    `abstain`. The retired boolean `passed` is detected by name and reported as
+    `abstain`, and is one of the three typed reasons - `jurisdiction`,
+    `evidence`, `underspecified` - each of which names a different repair. The
+    retired boolean `passed` is detected by name and reported as
     the *previous contract* with the migration spelled out, rather than as a
     generic "unexpected type" that says nothing about what changed;
   * sibling `timing.json` and the eval directory's `eval_metadata.json` are
@@ -137,18 +139,51 @@ ABSENT = "—"  # em dash - what an unknown measurement renders as (C4)
 
 VERDICTS = ("pass", "fail", "abstain")
 
-#: The two typed reasons an abstention may carry. They are not interchangeable
-#: and they are not free text: `jurisdiction` says the seat could not rule on
-#: this at all, `evidence` says it could have but the artifacts did not carry
-#: what the ruling needed. The first is a statement about the expectation set,
-#: the second about the run - and an analyst reading a drifted judge needs to
-#: know which one it drifted toward.
-ABSTAIN_REASONS = ("jurisdiction", "evidence")
+#: The three typed reasons an abstention may carry. They are not
+#: interchangeable and they are not free text - each one names a different
+#: repair, performed by a different person. Which one applies is settled by a
+#: procedure, not by which description reads closest; the procedure is stated in
+#: full in references/schemas.md ("Typing an abstention") and in the same words
+#: in agents/grader.md and agents/panel/seat-frame.md. In brief - three
+#: questions, first `yes` decides:
+#:
+#:   1. is something THIS RUN could have produced missing?   -> evidence
+#:      (a standard handed in from outside is not evidence; it confers
+#:      standing, and question 1 covers artifacts of this run only)
+#:   2. does a standard that decides it already exist, held by someone
+#:      nameable who is not this judge?                      -> jurisdiction
+#:      (a preference nobody has fixed is not a standard)
+#:   3. can the open term be quoted - the word, comparison or threshold
+#:      nobody has fixed?                                    -> underspecified
+#:
+#: None of the three answerable is `jurisdiction`: failing to find a standard is
+#: not the same as establishing that none exists. Question 3 being affirmative
+#: rather than a fall-through is deliberate - `underspecified` is the only
+#: reason that puts the defect outside both the judge and the run, so it is the
+#: cheapest one to write, and the ladder makes it the earned answer rather than
+#: the residue.
+#:
+#: The third reason was found from the ground up rather than designed in
+#: (contract C16): on a sixteen-item corpus, two independent blind readers
+#: disagreed on exactly one item, and it was a comparative claim carrying an
+#: undefined term - one ruled it decidable, the other said no judge could reach
+#: it. Under the procedure that split is a disagreement about question 2, which
+#: is arguable from evidence rather than from taste.
+ABSTAIN_REASONS = ("jurisdiction", "evidence", "underspecified")
 
+#: One line each, in the procedure's terms rather than as loose paraphrase -
+#: these strings are what an author reads when the reason is missing, and a
+#: paraphrase here would be a fourth description competing with the three
+#: questions above.
 ABSTAIN_REASON_MEANINGS = {
-    "jurisdiction": "outside what this judge can rule on",
-    "evidence": ("in jurisdiction, but the evidence needed to decide was not "
-                 "in hand"),
+    "jurisdiction": ("a standard that decides it exists and is held by someone "
+                     "who is not this judge - also the answer when none of the "
+                     "three questions can be answered yes"),
+    "evidence": ("something this run could have produced is missing; with it "
+                 "in hand this judge could have ruled"),
+    "underspecified": ("no standard exists for anyone to hold - the statement "
+                       "leaves a term open, and that term is named in "
+                       "`evidence`"),
 }
 
 #: Said once, by every component that has to say it. `pass_rate` is a rate over
@@ -186,10 +221,30 @@ longer
 "evidence"}}
         not this judge's call  ->  {{"verdict": "abstain", "abstainReason": \
 "jurisdiction"}}
+        nobody could tell  ->  {{"verdict": "abstain", "abstainReason": \
+"underspecified"}}
+
+      The three are different repairs: supply the missing artifact, reassign \
+the judge,
+      rewrite the assertion. Only the last one is the eval author's, which is \
+why
+      "nobody could tell" is not a spelling of "not this judge's call".
 
       And in `summary`: add `abstained`, keep `passed + failed + abstained == \
 total`,
       and set {rule}."""
+
+
+def reason_menu() -> str:
+    """Every typed reason with its meaning, for a message that names them all.
+
+    Generated from `ABSTAIN_REASON_MEANINGS` rather than written out, because
+    the enum grew once (contract C16's third reason) and a hand-written menu is
+    exactly the copy that stays at two while the enum is at three.
+    """
+    items = [f"'{reason}' ({meaning})"
+             for reason, meaning in ABSTAIN_REASON_MEANINGS.items()]
+    return ", ".join(items[:-1]) + f", or {items[-1]}"
 
 
 def previous_contract_message(count: int) -> str:
@@ -566,9 +621,7 @@ def _check_expectation(exp, idx, errors):
                     f"{where}.abstainReason: required when the verdict is "
                     f"'abstain', and "
                     f"{'absent' if 'abstainReason' not in exp else 'null'}. "
-                    f"Use 'jurisdiction' ("
-                    f"{ABSTAIN_REASON_MEANINGS['jurisdiction']}) or 'evidence' "
-                    f"({ABSTAIN_REASON_MEANINGS['evidence']}). An untyped "
+                    f"Use {reason_menu()}. An untyped "
                     f"abstention cannot be told from a judge that has stopped "
                     f"ruling on anything"
                 )

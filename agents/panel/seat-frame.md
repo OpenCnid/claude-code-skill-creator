@@ -89,9 +89,38 @@ One block per statement, in the order the statements were listed:
 item: {Item_Id_As_Given}
 verdict: (pass | fail | abstain)
 failClass: ({A_Class_Name_From_Your_Own_Taxonomy} | null)
-abstainReason: (jurisdiction | evidence | null)
+abstainReason: (jurisdiction | evidence | underspecified | null)
 vacuous: (true | false)
 evidence: {The_Location_And_The_Bytes_You_Relied_On_Reproduced_So_A_Stranger_Could_Recheck}
+
+`abstainReason` is exactly one of three, and it is not a description you pick the closest match to.
+**Answer these three questions in order; the first one you can answer *yes* to decides.**
+
+1. **Is something missing that this run could have produced?** A file, a transcript, an input, a
+   rendered view — something that, in hand, would let you rule under a standard you already hold.
+   → `evidence`.
+2. **Does a standard that decides this already exist outside you?** One whose holder you could name —
+   a profession, a specification, a convention, a rule someone wrote down — and that two of its
+   holders would apply the same way. You are not that holder; someone is. → `jurisdiction`.
+3. **Can you quote the open term?** The word nobody defined, the comparison with no baseline, the
+   threshold nobody set — and say what fixing it would look like. → `underspecified`, and the word
+   itself goes in `evidence`.
+
+If you cannot answer any of the three *yes*, the reason is `jurisdiction`. Failing to find a standard
+is not the same as establishing that none exists, and the second is the stronger claim.
+
+Two clauses keep the questions from collapsing into each other:
+
+- **A standard handed to you from outside is not evidence.** A specification, a regulation, a rubric,
+  a definition of the disputed word — being given one of those does not fill a gap in the material,
+  it confers standing you did not have. Question 1 is about artifacts of *this run* only, and
+  everything else that would have helped belongs to question 2 or 3.
+- **A preference nobody has fixed is not a standard.** Question 2 asks whether the standard already
+  exists, not whether someone could produce one on request. If the route to a ruling runs through
+  somebody *writing down* a threshold that does not exist yet, that is question 3.
+
+A statement that is merely hard, or ambiguous between two readings you could choose between and say
+which you took, is none of the three: decide it.
 
 `vacuous` is `true` only beside `verdict: pass`, and it says exactly this: the statement is true of
 the material, and its truth cost nothing — it holds because the collection it quantifies over is
@@ -135,21 +164,61 @@ transcript" is a statement about the run that the seat should reach on its own i
 Mask authorship everywhere. Which configuration produced these files — with the skill, without it, an
 older version — is never a parameter, and directory names are the usual place it leaks.
 
+**Render this with `scripts.render_seats`, never by hand.** Two runs were rendered by hand against the
+paragraph above and both handed a byte-identical `<evidence>` block to all three seats — every path to
+everyone, closed by a sentence saying each seat's allowlist governed which of them it could read. That
+converts the allowlist back into a promise, and it puts an instruction inside the one section
+`<identity>` tells the seat is never instruction. The breach was demonstrable: run 1's grounding
+`inputs` declared the producing agent's prose note *withheld from this seat by design*, the note files
+sat in the directories it was pointed at, and its return cited one of them. The orchestrator who did
+that was following this paragraph and got it wrong anyway — which is the argument that put the C17
+gates in `gate_panel.py` rather than in prose, and it applies here identically.
+
+```
+python -m scripts.render_seats <composition> --evals <evals.json> \
+    --material <material.json> --out <dir>
+```
+
+`--material` is a manifest **you** write. It binds each seat's `inputs` entries — prose the composer
+wrote at runtime — to concrete paths, because nothing machine-readable in the composition does, and a
+mapping guessed at render time is the defect wearing a smaller hat. `--emit-manifest-template` writes
+the skeleton: every entry quoted verbatim so nobody re-types one, every binding empty so nobody renders
+against a guess. The renderer refuses — non-zero, having written nothing — on an entry bound to no
+channel, an entry whose quoted text has drifted from the composition's, two channels colliding on a
+path without declaring it, a channel that matches nothing anywhere, a seat admitting no path, or an
+admitted path carrying a configuration name. There is no fallback to handing every seat everything,
+because that fallback *is* the defect.
+
+It writes `render_manifest.json` beside the prompts, naming per seat every path admitted and every path
+withheld, and the SHA-256 of each of the four sections. That is what makes a seat's independence
+checkable from the record rather than from anyone's word: `<identity>` and `<output_schema>` carry one
+digest across every seat, and `<evidence>` carries a different one wherever the allowlists differ.
+
 **`<output_schema>`** — verbatim. `failClass` is non-null exactly when `verdict` is `fail`;
 `abstainReason` is non-null exactly when `verdict` is `abstain`; `vacuous` is `true` only when
 `verdict` is `pass`. A seat that wants to fail on something outside its taxonomy abstains on
 `jurisdiction` instead — the closed taxonomy is what makes the composition auditable, and a class
 invented at judging time is a rubric nobody gated.
 
-The gloss on `vacuous` is part of the verbatim block and is not trimmed. It is the same bytes for
-every seat, every run and every skill, so it primes nothing — and without it the seat has no way to
-report *"this is true of the artifact, and satisfying it proves nothing."* A seat handed that finding
-and no channel for it does not drop it; it routes it through the nearest channel it has, which is
-`fail`, and returns a false `fail` on a literally true statement. That is measured, not hypothesized:
-a universal over an empty file, true on both blind readings, came back `fail`/`vacuous_membership`
-from the seat whose composed subject matter explicitly includes *universals an empty artifact
-satisfies*. The composer was right to give that seat the question. The frame was wrong to leave it
-one verdict short of being able to answer.
+The glosses on `abstainReason` and on `vacuous` are part of the verbatim block and are not trimmed.
+They are the same bytes for every seat, every run and every skill, so they prime nothing, and each one
+is the only channel its finding has.
+
+Without the `vacuous` gloss the seat has no way to report *"this is true of the artifact, and
+satisfying it proves nothing."* A seat handed that finding and no channel for it does not drop it; it
+routes it through the nearest channel it has, which is `fail`, and returns a false `fail` on a
+literally true statement. That is measured, not hypothesized: a universal over an empty file, true on
+both blind readings, came back `fail`/`vacuous_membership` from the seat whose composed subject matter
+explicitly includes *universals an empty artifact satisfies*. The composer was right to give that seat
+the question. The frame was wrong to leave it one verdict short of being able to answer.
+
+The `abstainReason` gloss carries the bar for `underspecified`, and the bar is what the bytes are for.
+The reason itself has to exist — a statement no judge could rule on, filed as `evidence`, sends
+someone to capture a transcript that would not have helped, and filed as `jurisdiction` sends them to
+recompose a panel that was fine. But it is also the only one of the three that locates the defect
+outside the panel, which makes it the cheapest thing a tired seat can write. Naming the open term is
+the price, and it is stated in the same invariant bytes as the reason so that no seat receives one
+without the other.
 
 ## What you do with the returns
 
@@ -165,11 +234,40 @@ first one that matches decides, and gate 2 sits above gate 3 for the reason writ
 | 2 | No `fail`, and **two or more seats `abstain`** | `abstain` | The deciding question was mostly unowned. One seat's `pass` on its own question is not a resolution of the item. |
 | 3 | No `fail`, at most one seat `abstain`, at least one `pass` | `pass` | A seat with jurisdiction and evidence ruled, and the seat beside it either agreed or was the cover working as composed. |
 
-The composed `abstainReason` at gate 2 is `evidence` if **any** abstaining seat said `evidence`, else
-`jurisdiction`. `jurisdiction` says nobody had standing — disclose the item as untestable as composed,
-which is a fact about the panel, not about the run. `evidence` says a seat that did have standing
-still could not decide for want of material, which is a fact about the run and the more actionable of
-the two; that is why one `evidence` outweighs two `jurisdiction`s.
+The composed `abstainReason` at gate 2 is the **first** of these any abstaining seat returned:
+
+| order | reason | what it says | the repair it orders |
+|---|---|---|---|
+| 1 | `evidence` | a seat that had standing still could not decide, for want of material | supply the missing artifact |
+| 2 | `underspecified` | no judge, with any evidence, could rule — the statement names no property | rewrite the assertion |
+| 3 | `jurisdiction` | nobody on the panel had standing | reassign the judge; disclose the item as untestable as composed |
+
+**That order is not a separate rule to remember. It is the seats' own three questions, run once more
+over what the panel returned.** A seat answers *is something missing / does a standard exist elsewhere
+/ can I quote the open term* about itself; the composition asks the same three about the panel, and
+takes the first that any seat answered *yes* to. One rule at both scales, which is why it does not
+drift.
+
+`evidence` outranks both because question 1 is answered by a seat *about itself*: it had standing, and
+it can name the artifact that would have settled the item. That claim also contradicts
+`underspecified` outright — a statement one seat says an artifact would settle is not one no judge with
+any evidence could rule on — so on that split the panel is not choosing a shade, it is choosing
+between two incompatible reports. It takes the checkable one. The repairs fail asymmetrically too:
+supplying an artifact is reversible and self-revealing, since the next run either decides the item or
+abstains again and the record says which. Rewriting an assertion is neither — the original wording is
+gone, the rewritten one passes, and nobody learns that the sentence was fine and the transcript was
+merely missing.
+
+`underspecified` outranks `jurisdiction` because a seat reaching it has answered question 3 and named
+the hole, while `jurisdiction` is what the ladder returns when nothing was named. They do not
+conflict: a seat saying "not mine" makes no claim about whether anyone else could rule. So where both
+appear, the composed reason is the one carrying a finding, and `jurisdiction` stays what it is at
+every scale — the answer given when no stronger one was earned.
+
+Each seat's own reason is written verbatim into `seatAbstentions` regardless, so the composed reason
+is a routing decision, never a replacement for what the seats said. A panel that split between
+`jurisdiction` and `underspecified` disagreed about question 2 — whether a standard exists out there
+that someone holds — and that is a disagreement worth reading, not one to average away.
 
 `fail` carries the failing seat's `failClass` and its evidence string into `evidence`. Where more than
 one seat failed, carry each, named by seat — two seats failing for different reasons is a stronger
@@ -221,12 +319,12 @@ passed; grounding-only turns a correct `pass` into an `abstain` and scores 12/15
     {
       "text": "{Expectation_From_Your_Own_Copy_Never_From_A_Seat_Return}",
       "verdict": "pass | fail | abstain",
-      "abstainReason": "jurisdiction | evidence | null",
+      "abstainReason": "jurisdiction | evidence | underspecified | null",
       "vacuous": "true | false",
       "seatAbstentions": [
         {
           "seat": "{Seat_Name_From_panel_seats}",
-          "abstainReason": "jurisdiction | evidence",
+          "abstainReason": "jurisdiction | evidence | underspecified",
           "evidence": "{That_Seats_Own_Evidence_String_Verbatim}"
         }
       ],
@@ -273,8 +371,12 @@ composed verdict is a lossy summary.
   byte and a consumer then reads "not recorded" as zero — the same C4 error as rendering an unknown
   measurement as `0`.
 - `seat` is a name from `panel.seats`. `abstainReason` is that seat's own typed reason, verbatim,
-  never the composed one — a seat that said `evidence` on an item whose composed reason came out
-  `jurisdiction` is exactly the disagreement worth keeping.
+  never the composed one — a seat that said `underspecified` on an item whose composed reason came out
+  `evidence` is exactly the disagreement worth keeping. That split is where the third reason came
+  from: two independent blind readers of one sixteen-item corpus disagreed on exactly one item, and it
+  was a comparative claim with an undefined term — one ruled it decidable, the other said no judge
+  could reach it. A record that keeps only the composed reason loses the one item that taught the
+  distinction.
 - `evidence` is the abstaining seat's own evidence string. An abstention is a verdict (constraint 4)
   and a verdict with no evidence is not reviewable.
 - Seats that ruled are not listed. `len(panel.seats) - len(seatAbstentions)` is how many seats ruled
@@ -328,18 +430,28 @@ different events even when both read as confident, and the bare verdict does not
 ## Running order
 
 1. Characterize (`characterizer.md`) → `characterization.json`.
-2. Compose (`composer.md`) → `composition.json`, blind to every candidate.
+2. Compose (`composer.md`) → `composition.json`, blind to every candidate. Pass it
+   `characterization_path`, `composition_path`, and `registries_path` — the absolute path to this
+   bundle's `references/judge-registries.md`, which is where `select`'s vocabulary lives. A composer
+   left to invent its own parameter names produces `select` entries no other composition can be
+   compared against, and the overlap gate compares them as strings.
 3. **Gate** — `python -m scripts.gate_panel <composition.json> --characterization <characterization.json>`.
    Zero-model, before any seat is spawned. On a typed refusal, send the composer back with the report;
    on repeated refusal, end with the report rather than judging through a defective cover.
 4. Pre-register your expected verdicts to a timestamped file no prompt will ever read. A
    pre-registration whose bytes reach a prompt is a work order, not a forecast.
-5. Spawn the three seats in parallel, each in its own clean context, each rendered from the frame above.
-6. Compose the returns by the gates; write `grading.json`.
-7. Audit (`audit.md`), over the seats, the composer's artifacts, and the telemetry. It renders findings
-   and never gates.
+5. **Render** — `python -m scripts.render_seats <composition.json> --evals <evals.json> --material
+   <material.json> --out <dir>`. Zero-model, and the one step that must not be done by hand: see the
+   material filling rule. On a typed refusal, fix the manifest and re-run; nothing was written.
+6. Spawn the three seats in parallel, each in its own clean context, each from the file step 5 wrote for
+   it and from nothing else.
+7. Compose the returns by the gates; write `grading.json`.
+8. Audit (`audit.md`), over the seats, the composer's artifacts, and the telemetry. It renders findings
+   and never gates. Hand it `render_manifest.json` too — it is the only record of what each seat could
+   read, and an audit of the seats' separation that rests on the seats' own reports of what they read
+   is the thing this file stopped doing.
 
 The blindness in steps 1–3 is a **composition-time** property. On the forward pass the instantiated
 seat is shown the statements and asked to decide them — that is the point. Reading "blind to the
-candidate" as covering step 5 would leave nothing to judge. The safeguard is the order: criteria that
+candidate" as covering step 6 would leave nothing to judge. The safeguard is the order: criteria that
 could not have been shaped to these statements, then applied to them.

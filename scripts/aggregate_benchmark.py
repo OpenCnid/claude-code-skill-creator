@@ -110,7 +110,8 @@ Shape of `run_summary`:
         "time_seconds": ... | null,
         "tokens":       ... | null,
         "abstention":   {"abstained","graded","total","rate",
-                         "reasons":{"jurisdiction","evidence","untyped"},
+                         "reasons":{<one key per validate_grading.ABSTAIN_REASONS>,
+                                    "untyped"},
                          "runs","runs_without_pass_rate"} | null,
         "runs": <int>
       },
@@ -147,6 +148,7 @@ from scripts.utils import (
 )
 from scripts.validate_grading import (
     ABSENT,
+    ABSTAIN_REASON_MEANINGS,
     ABSTAIN_REASONS,
     BASELINE_ROLE_CONFIGS,
     CANONICAL_LAYOUT,
@@ -172,6 +174,30 @@ DELTA_FORMATS = {
     "pass_rate": "{:+.2f}",
     "time_seconds": "{:+.1f}",
     "tokens": "{:+.0f}",
+}
+
+#: What to DO about each typed abstention, keyed by - never restating -
+#: `validate_grading.ABSTAIN_REASONS`. The enum and the one-line meanings live
+#: there; only the repair sentence is here, because the repair is the half a
+#: benchmark reader acts on and the meanings deliberately state the procedure
+#: rather than the action.
+#:
+#: `_abstention_legend` walks the ENUM, not this dict, so a reason added to the
+#: contract is listed with its meaning whether or not anyone remembers to write
+#: a repair for it - it can go unexplained, but it can never go missing. A
+#: reason with no repair here is a test failure
+#: (`tests/test_benchmark_contracts.py`), not a silently thinner legend: this
+#: file and `eval-viewer/viewer.html` were both hand-maintained copies of a
+#: two-member enum when the enum went to three, and each has to be caught by
+#: something other than whoever notices.
+ABSTAIN_REASON_REPAIRS = {
+    "jurisdiction": "reassign the judge - a standard that settles it exists, "
+                    "and somebody who is not this judge holds it",
+    "evidence": "supply the missing artifact - a transcript, the input file - "
+                "and grade the run again",
+    "underspecified": "rewrite the assertion - no judge could rule on it as "
+                      "written, because it names no property of the artifact, "
+                      "and this repair is the author's alone",
 }
 
 
@@ -229,12 +255,16 @@ def abstention_stats(runs: list) -> dict | None:
     rule on" - and it is deliberately a different weighting from `pass_rate`'s
     macro average over runs.
 
-    `reasons` splits the abstentions by their typed reason, because the two
-    mean different things. A wall of `jurisdiction` says the expectation set is
-    asking this seat questions it cannot answer; a wall of `evidence` says the
-    runs are not producing what a ruling needs. `untyped` counts abstentions
-    with no valid reason - schema-invalid gradings never reach here, so it
-    stays 0 in practice and is emitted rather than assumed.
+    `reasons` splits the abstentions by their typed reason, because each one
+    means a different thing and calls for a different repair. A wall of
+    `jurisdiction` says the expectation set is asking this seat questions it
+    cannot answer; a wall of `evidence` says the runs are not producing what a
+    ruling needs; a wall of `underspecified` says the assertions themselves
+    name nothing to check, and that one is the eval author's to fix. The keys
+    come from `ABSTAIN_REASONS`, so the split follows the enum rather than a
+    second copy of it. `untyped` counts abstentions with no valid reason -
+    schema-invalid gradings never reach here, so it stays 0 in practice and is
+    emitted rather than assumed.
 
     Returns None when no run carried usable counts, which renders as unknown
     rather than as "nobody abstained".
@@ -1133,6 +1163,44 @@ def _fmt_abstention(block, *, short: bool = False) -> str:
     return cell
 
 
+def _abstention_legend() -> list:
+    """One markdown line per typed reason, generated from the enum.
+
+    Generated rather than written out. The sentence this replaced named two
+    reasons while `_fmt_abstention` above already printed whatever the counts
+    contained, so when the contract's enum went to three, `underspecified`
+    appeared in the Detail column of the table with no entry in the legend
+    underneath it - a count with no meaning attached, in the one section whose
+    whole job is to attach meanings to counts.
+
+    Walking `ABSTAIN_REASONS` means the legend cannot fall behind the enum
+    again. `ABSTAIN_REASON_REPAIRS` is consulted by key, so a reason with no
+    repair sentence still gets listed with its meaning.
+    """
+    lines = []
+    for reason in ABSTAIN_REASONS:
+        meaning = ABSTAIN_REASON_MEANINGS.get(reason)
+        line = f"- `{reason}`"
+        if meaning:
+            line += f" - {meaning}"
+        repair = ABSTAIN_REASON_REPAIRS.get(reason)
+        if repair:
+            line += f". **Fix: {repair}.**"
+        else:
+            line += "."
+        lines.append(line)
+    # Not a contract reason and deliberately listed apart from them: it is the
+    # bucket `abstention_stats` fills when an abstention carries a reason that
+    # is not in the enum at all. Schema-invalid gradings never reach the
+    # aggregator, so a non-zero count here is a file that was edited by hand
+    # after validation, not a judge making a new kind of ruling.
+    lines.append(
+        "- `untyped` - not a reason the contract defines. It counts abstentions "
+        "whose `abstainReason` was absent or was a value outside the list "
+        "above, and it is 0 in any workspace that passed validation.")
+    return lines
+
+
 def _fmt_cell(stats, kind: str) -> str:
     """Render mean ± stddev for one metric, or an em dash when unmeasured."""
     if stats is None:
@@ -1413,9 +1481,13 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
             "",
             f"An abstention is a check the judge declined to rule on, not a "
             f"check that failed. It leaves the pass-rate denominator entirely: "
-            f"{PASS_RATE_RULE}. `jurisdiction` means the check was outside what "
-            f"the judge could rule on; `evidence` means it was in scope but the "
-            f"run did not produce what a ruling needed.",
+            f"{PASS_RATE_RULE}. The typed reason is not decoration - each one "
+            f"names a different repair, performed by a different person, and "
+            f"the `Fix:` on each line below says which person:",
+            "",
+        ])
+        lines.extend(_abstention_legend())
+        lines.extend([
             "",
             "**There is deliberately no delta on this row and no polarity.** "
             "Every other metric here declares which direction is better "
