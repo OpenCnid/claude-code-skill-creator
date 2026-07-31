@@ -86,9 +86,18 @@ Claude Code picks it up live — no restart. Then just describe what you want:
 
 > "I keep writing the same kind of release notes by hand. Can we make Claude do it the way I do it?"
 
-**Note on the name.** The directory is `skill-creator`, which means a personal or project copy will
-**shadow** the plugin-installed one of the same name. That is intentional. If you want both available,
-rename this directory and its frontmatter `name` to match.
+**Note on the name.** The repository is `claude-code-skill-creator`, but the skill it ships is
+`skill-creator` — which is why the commands above rename it on the way in. Claude Code takes a skill's
+invocation name from its **directory**, so installing it as `skill-creator` means a personal or
+project copy **shadows** the plugin-installed one of the same name. That is intentional.
+
+Two consequences worth knowing:
+
+- If you want both available, install it under a different directory name **and** change the
+  frontmatter `name` to match. Changing only one of them gets you a skill that answers to a name its
+  own file doesn't state.
+- `package_skill` refuses to build an archive when the directory and the frontmatter `name` disagree,
+  so package from an installed copy (or a directory named `skill-creator`), not from the clone root.
 
 ## Requirements
 

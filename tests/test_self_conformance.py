@@ -83,16 +83,39 @@ class FrontmatterObeysItsOwnRules(unittest.TestCase):
             "Past it the listing entry is truncated, and the truncation is invisible.",
         )
 
-    def test_name_matches_directory(self):
+    def test_install_directory_matches_frontmatter_name(self):
+        """The rule is about the INSTALLED directory, not the checkout directory.
+
+        This repository is named for discoverability (`claude-code-skill-creator`) while the
+        skill it ships is `skill-creator`, so that a personal or project copy shadows the
+        plugin-installed one of the same name. A clone therefore sits in a directory that does
+        not match, which is fine and expected -- Claude Code only reads the directory name once
+        the skill is installed under a skills/ path.
+
+        What must hold is that the README tells you the directory to install it AS, and that the
+        name it tells you matches the frontmatter. Otherwise the skill answers to a name its own
+        documentation does not state, and `package_skill` refuses to build an archive.
+        """
         m = re.search(r"^name:\s*(\S+)\s*$", self.text, re.M)
         self.assertIsNotNone(m)
-        self.assertEqual(
-            m.group(1),
-            SKILL_ROOT.name,
-            "frontmatter name and directory name disagree. Claude Code takes the invocation "
-            "name from the directory, so the skill would answer to a name its own frontmatter "
-            "does not state -- and packaging refuses outright.",
+        name = m.group(1)
+
+        readme = read(SKILL_ROOT / "README.md")
+        self.assertRegex(
+            readme,
+            rf"skills/{re.escape(name)}\b",
+            f"README must show the install target as a directory named {name!r} -- "
+            "Claude Code takes the invocation name from the directory, and packaging "
+            "refuses when the directory and frontmatter name disagree.",
         )
+
+        if SKILL_ROOT.name != name:
+            # Not a failure, but the person running from a checkout should know why
+            # `python -m scripts.package_skill .` will refuse here.
+            print(
+                f"\n  note: checkout directory is {SKILL_ROOT.name!r}, skill name is {name!r}. "
+                f"Package from a copy named {name!r}, per README.",
+            )
 
 
 class EveryPointerResolves(unittest.TestCase):
