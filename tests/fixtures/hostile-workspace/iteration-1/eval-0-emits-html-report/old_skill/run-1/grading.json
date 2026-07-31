@@ -1,0 +1,60 @@
+{
+  "expectations": [
+    {
+      "text": "The output is a CSV file",
+      "passed": true,
+      "evidence": "row 0 checked"
+    },
+    {
+      "text": "Header row present",
+      "passed": true,
+      "evidence": "row 1 checked"
+    },
+    {
+      "text": "Totals row is last",
+      "passed": false,
+      "evidence": "row 2 checked"
+    },
+    {
+      "text": "Currency is formatted",
+      "passed": false,
+      "evidence": "row 3 checked"
+    },
+    {
+      "text": "No blank rows",
+      "passed": false,
+      "evidence": "row 4 checked"
+    },
+    {
+      "text": "Dates are ISO-8601",
+      "passed": false,
+      "evidence": "row 5 checked"
+    },
+    {
+      "text": "Encoding is UTF-8",
+      "passed": false,
+      "evidence": "row 6 checked"
+    },
+    {
+      "text": "File is under 1 MB",
+      "passed": false,
+      "evidence": "row 7 checked"
+    },
+    {
+      "text": "Column order matches the brief",
+      "passed": false,
+      "evidence": "row 8 checked"
+    },
+    {
+      "text": "Footer note is present",
+      "passed": false,
+      "evidence": "row 9 checked"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 8,
+    "total": 10,
+    "pass_rate": 0.2
+  }
+}

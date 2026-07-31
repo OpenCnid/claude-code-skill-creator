@@ -1,0 +1,20 @@
+{
+  "expectations": [
+    {
+      "text": "Mentions the total",
+      "passed": true,
+      "evidence": "row 0 checked"
+    },
+    {
+      "text": "Two sentences or fewer",
+      "passed": true,
+      "evidence": "row 1 checked"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 0,
+    "total": 2,
+    "pass_rate": 1.0
+  }
+}

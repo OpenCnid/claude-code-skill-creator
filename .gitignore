@@ -19,8 +19,18 @@ htmlcov/
 # Eval workspaces. These belong beside the skill, not inside it, but they get
 # created here often enough to be worth ignoring: they can be large, they carry
 # a person's own prompts and outputs, and they are never part of a distribution.
-*-workspace/
-evals/
+#
+# Anchored to the repository root with a leading slash, and tests/ is exempted
+# below. An unanchored `*-workspace/` matches at EVERY depth, which silently
+# excluded six committed fixture directories under tests/fixtures/ and produced
+# a repository whose own test suite failed on a clean clone. The bug was
+# invisible locally because the files were already on disk.
+/*-workspace/
+/evals/
+
+# Never ignore test fixtures. They are inputs to tests that assert byte-level
+# behaviour, so a fixture missing from a clone is a test measuring nothing.
+!tests/fixtures/**
 
 # Secrets. Belt and braces — package_skill excludes these from archives, but
 # nothing should stop them reaching a commit either.

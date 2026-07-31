@@ -1,0 +1,15 @@
+{
+  "expectations": [
+    {
+      "text": "Check A",
+      "passed": true,
+      "evidence": "checked"
+    }
+  ],
+  "summary": {
+    "passed": 1,
+    "failed": 0,
+    "total": 1,
+    "pass_rate": 1.0
+  }
+}

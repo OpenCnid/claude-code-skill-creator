@@ -1,0 +1,25 @@
+{
+  "expectations": [
+    {
+      "text": "Header row present",
+      "passed": true,
+      "evidence": "row 1 is a header"
+    },
+    {
+      "text": "Totals row is last",
+      "passed": false,
+      "evidence": "totals row is in the middle"
+    },
+    {
+      "text": "Currency is formatted",
+      "passed": true,
+      "evidence": "GBP with two decimals"
+    }
+  ],
+  "summary": {
+    "passed": 2,
+    "failed": 1,
+    "total": 3,
+    "pass_rate": 0.6667
+  }
+}
