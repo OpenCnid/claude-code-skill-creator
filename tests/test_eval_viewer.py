@@ -395,11 +395,11 @@ class AssertionAlignmentBehaviour(unittest.TestCase):
     # Two graders, same two checks, opposite order, opposite results.
     SWAPPED = [
         {"configuration": "with_skill", "run_number": 1, "expectations": [
-            {"text": "Header row present", "passed": True, "evidence": "a"},
-            {"text": "Totals row is last", "passed": False, "evidence": "b"}]},
+            {"text": "Header row present", "verdict": "pass", "evidence": "a"},
+            {"text": "Totals row is last", "verdict": "fail", "evidence": "b"}]},
         {"configuration": "without_skill", "run_number": 1, "expectations": [
-            {"text": "Totals row is last", "passed": True, "evidence": "c"},
-            {"text": "Header row present", "passed": False, "evidence": "d"}]},
+            {"text": "Totals row is last", "verdict": "pass", "evidence": "c"},
+            {"text": "Header row present", "verdict": "fail", "evidence": "d"}]},
     ]
 
     def test_opposite_order_does_not_render_as_agreement(self):
@@ -418,9 +418,9 @@ class AssertionAlignmentBehaviour(unittest.TestCase):
             self.skipTest("node is not installed; the browser evidence covers this case")
         runs = [
             {"configuration": "with_skill", "run_number": 1, "expectations": [
-                {"text": "Output is a CSV file", "passed": True, "evidence": "a"}]},
+                {"text": "Output is a CSV file", "verdict": "pass", "evidence": "a"}]},
             {"configuration": "without_skill", "run_number": 1, "expectations": [
-                {"text": "The output is a CSV file", "passed": False, "evidence": "b"}]},
+                {"text": "The output is a CSV file", "verdict": "fail", "evidence": "b"}]},
         ]
         html = self._render(runs, ["with_skill", "without_skill"])
         rows = self._rows(html)
@@ -437,9 +437,9 @@ class AssertionAlignmentBehaviour(unittest.TestCase):
             self.skipTest("node is not installed; the browser evidence covers this case")
         runs = [
             {"configuration": "with_skill", "run_number": 1, "expectations": [
-                {"text": "No blank rows", "passed": True, "evidence": "a"}]},
+                {"text": "No blank rows", "verdict": "pass", "evidence": "a"}]},
             {"configuration": "without_skill", "run_number": 1, "expectations": [
-                {"text": "No blank columns", "passed": False, "evidence": "b"}]},
+                {"text": "No blank columns", "verdict": "fail", "evidence": "b"}]},
         ]
         html = self._render(runs, ["with_skill", "without_skill"])
         self.assertNotIn("Graders worded this differently", html)
@@ -449,9 +449,9 @@ class AssertionAlignmentBehaviour(unittest.TestCase):
             self.skipTest("node is not installed; the browser evidence covers this case")
         runs = [
             {"configuration": "with_skill", "run_number": 1, "expectations": [
-                {"passed": True, "evidence": "a"}]},
+                {"verdict": "pass", "evidence": "a"}]},
             {"configuration": "without_skill", "run_number": 1, "expectations": [
-                {"passed": False, "evidence": "b"}]},
+                {"verdict": "fail", "evidence": "b"}]},
         ]
         html = self._render(runs, ["with_skill", "without_skill"])
         rows = self._rows(html)
@@ -1236,6 +1236,254 @@ class OfflineRendering(unittest.TestCase):
         fn = body[body.index("function renderXlsx"):]
         self.assertIn('typeof XLSX === "undefined"', fn)
         self.assertIn("getDownloadUri(file)", fn[:fn.index("XLSX.read")])
+
+
+class TernaryVerdicts(unittest.TestCase):
+    """Contract C16, executed rather than read.
+
+    The page's JavaScript is run under node with a DOM stub, and the resulting
+    HTML is parsed. Per contract C15 the check has to observe the property, not
+    a proxy for it: grepping viewer.html for the word "abstain" would pass over
+    a page that computed a rate of 0% and printed the word in a caption, which
+    is the exact failure this contract closes.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.node = shutil.which("node")
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = build(Path(cls._tmp.name))
+        cls.benchmark = json.loads(
+            (cls.root / "abstain-workspace" / "iteration-1" / "benchmark.json")
+            .read_text(encoding="utf-8"))
+        cls.legacy_grading = json.loads(
+            (cls.root / "previous-contract-workspace" / "iteration-1"
+             / "eval-0-boolean-verdicts" / "with_skill" / "run-1"
+             / "grading.json").read_text(encoding="utf-8"))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def _run_js(self, call, embedded):
+        """Execute one render function against a stubbed document."""
+        if not self.node:
+            self.skipTest("node is not installed")
+        body = "\n".join(script_bodies(VIEWER_HTML))
+        source = body.split("// ---- Start ----")[0]
+        source = source.replace(
+            "/*__EMBEDDED_DATA__*/",
+            "const EMBEDDED_DATA = " + json.dumps(embedded) + ";")
+        harness = (
+            "const __sinks = {};\n"
+            "function __el(id){ if(!__sinks[id]) __sinks[id] = "
+            "{id, style:{}, classList:{add(){},remove(){},toggle(){}}, "
+            "innerHTML:'', appendChild(){}};\n  return __sinks[id]; }\n"
+            "const document = {addEventListener(){}, getElementById:__el,"
+            " querySelector(){return null}, querySelectorAll(){return []},"
+            " createElement(){return __el('scratch')}};\n"
+            + source
+            + "\n" + call + "\n"
+            + "console.log(JSON.stringify(Object.fromEntries("
+            "Object.entries(__sinks).map(([k,v]) => [k, v.innerHTML]))));\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            script = Path(tmp) / "harness.js"
+            script.write_text(harness, encoding="utf-8")
+            out = subprocess.run([self.node, str(script)], capture_output=True,
+                                 text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout)
+
+    def _benchmark_html(self, benchmark=None):
+        sinks = self._run_js(
+            "renderBenchmark();", {"runs": [], "benchmark": benchmark
+                                   if benchmark is not None else self.benchmark})
+        return sinks["benchmark-content"]
+
+    def _grades_html(self, grading, assertions=None):
+        run = {"id": "r", "grading": grading, "timing": None,
+               "assertions": assertions or []}
+        sinks = self._run_js(
+            "renderGrades(" + json.dumps(run) + ");", {"runs": []})
+        return sinks["grades-content"]
+
+    @staticmethod
+    def _text(html):
+        return re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", html)).strip()
+
+    # ---- the all-abstain end-to-end case --------------------------------
+
+    def test_an_all_abstained_eval_never_renders_as_a_zero(self):
+        """The whole point. `0%` on this page reads as "failed everything"."""
+        html = self._benchmark_html()
+        section = html[html.index("every-check-abstained"):]
+        section = section[:section.index("</table>")]
+        self.assertNotIn(
+            "0%", self._text(section),
+            "an eval nobody could rule on rendered a percentage:\n" + section)
+        self.assertIn("no rate", self._text(section))
+
+    def test_the_run_row_denominator_is_the_ruled_on_count(self):
+        html = self._benchmark_html()
+        section = html[html.index("every-check-abstained"):]
+        section = section[:section.index("</table>")]
+        # 0 of 0 ruled on, 2 of 2 abstained. `0/2` here would say the run was
+        # graded on two checks and passed none.
+        self.assertIn("0/0 ruled on", self._text(section))
+        self.assertIn("2/2", self._text(section))
+
+    def test_a_thin_result_and_a_complete_one_do_not_render_alike(self):
+        """100% over 2 ruled-on checks beside 100% over 11."""
+        html = self._benchmark_html()
+        section = html[html.index("thin-versus-complete"):]
+        section = section[:section.index("</table>")]
+        text = self._text(section)
+        # Both sides read 100%. The abstention column is the only thing that
+        # separates them, so it must be present and it must differ.
+        self.assertEqual(text.count("100%"), 4, text)
+        self.assertIn("9/11", text, "the thin side's abstentions are missing")
+        self.assertIn("0/11", text, "the complete side's zero is missing")
+
+    def test_the_headline_pass_rate_excludes_abstentions_from_the_denominator(self):
+        html = self._benchmark_html()
+        head = html[:html.index("Test-by-test detail")]
+        text = self._text(head)
+        # with_skill ruled on 2 checks and passed both: 100%, not 2/15 = 13%.
+        self.assertIn("2/2 graded checks", text)
+        self.assertIn("13 abstained of 15", text)
+        # without_skill ruled on 11 and passed 11.
+        self.assertIn("11/11 graded checks", text)
+
+    def test_abstentions_have_a_row_of_their_own_and_no_direction(self):
+        html = self._benchmark_html()
+        head = html[:html.index("Test-by-test detail")]
+        self.assertIn("Abstained", self._text(head))
+        self.assertIn("no direction is better", self._text(head))
+        row = head[head.index("<strong>Abstained</strong>"):]
+        row = row[:row.index("</tr>")]
+        # Never coloured as an improvement or a regression: signing this
+        # number would be the page taking a side the data does not support.
+        self.assertNotIn("benchmark-delta-better", row)
+        self.assertNotIn("benchmark-delta-worse", row)
+
+    def test_both_typed_reasons_reach_the_page(self):
+        html = self._benchmark_html()
+        section = html[html.index("both-reasons"):]
+        text = self._text(section)
+        self.assertIn("jurisdiction", text)
+        self.assertIn("evidence", text)
+
+    def test_an_abstained_mark_is_never_drawn_as_a_pass_or_a_fail(self):
+        """The comparison table's marks, by class, not by caption.
+
+        Found by mutation: pointing the abstain class at
+        `benchmark-delta-worse` left every text assertion green while the page
+        drew ◐ in the failure colour, which is the previous contract's
+        rendering under a new glyph.
+        """
+        html = self._benchmark_html()
+        marks = re.findall(r'<span class="([^"]*)"[^>]*>◐', html)
+        self.assertTrue(marks, "no abstained mark was rendered at all")
+        for cls in marks:
+            self.assertIn("benchmark-abstain", cls)
+            self.assertNotIn("benchmark-delta-worse", cls)
+            self.assertNotIn("benchmark-delta-better", cls)
+
+    def test_a_configuration_with_no_graded_check_has_no_headline_rate(self):
+        """The pooled headline, when nothing anywhere was ruled on.
+
+        Found by mutation: `microAverage` returning `rate: 0` for a zero
+        denominator put `0%` back at the top of the page — the single most
+        misleading cell in the artifact, because it is the one a reader quotes.
+        """
+        only_abstained = json.loads(json.dumps(self.benchmark))
+        only_abstained["runs"] = [r for r in only_abstained["runs"]
+                                  if r["eval_id"] == 0]
+        # What the aggregator emits for this tree: no rate on either side, so
+        # no delta either.
+        for config in ("with_skill", "without_skill"):
+            only_abstained["run_summary"][config]["pass_rate"] = None
+        only_abstained["run_summary"]["delta"]["pass_rate"] = {
+            "value": None, "formatted": "—",
+            "polarity": "higher_is_better", "better": None}
+        html = self._benchmark_html(only_abstained)
+        head = html[:html.index("Test-by-test detail")]
+
+        # The headline row alone. The Abstained row below it legitimately
+        # reads 100%, and a substring check over the whole table would trip
+        # on it while missing the cell that matters.
+        row = head[head.index("<strong>Pass rate</strong>"):]
+        row = row[:row.index("</tr>")]
+        text = self._text(row)
+        self.assertNotIn(
+            "%", text, "a rate over nothing reached the headline:\n" + text)
+        self.assertIn("no rate", text)
+        self.assertIn("0 of 2 checks were ruled on", text)
+
+        # And no percentage anywhere in the macro row either.
+        macro = head[head.index("<strong>Pass rate per run</strong>"):]
+        macro = macro[:macro.index("</tr>")]
+        self.assertNotIn("%", self._text(macro), macro)
+
+    # ---- per-run grades panel -------------------------------------------
+
+    def test_the_grades_panel_gives_abstentions_their_own_visual_state(self):
+        grading = json.loads(
+            (self.root / "abstain-workspace" / "iteration-1"
+             / "eval-2-both-reasons" / "with_skill" / "run-1" / "grading.json")
+            .read_text(encoding="utf-8"))
+        html = self._grades_html(grading)
+        # Neither the pass mark nor the fail mark.
+        self.assertIn('class="assertion-status abstain"', html)
+        self.assertNotIn('class="assertion-status pass"', html)
+        self.assertNotIn('class="assertion-status fail"', html)
+        # And the typed reason on screen, not only in the JSON.
+        self.assertIn("abstained: jurisdiction", html)
+        self.assertIn("abstained: evidence", html)
+
+    def test_the_grades_panel_says_there_is_no_rate_rather_than_zero(self):
+        grading = json.loads(
+            (self.root / "abstain-workspace" / "iteration-1"
+             / "eval-0-every-check-abstained" / "with_skill" / "run-1"
+             / "grading.json").read_text(encoding="utf-8"))
+        html = self._grades_html(grading)
+        text = self._text(html)
+        self.assertIn("no rate", text)
+        self.assertNotIn("0%", text)
+        self.assertIn("This is not a score of zero", text)
+        self.assertIn("2 abstained of 2", text)
+
+    def test_the_grades_summary_line_reports_abstentions(self):
+        grading = json.loads(
+            (self.root / "abstain-workspace" / "iteration-1"
+             / "eval-1-thin-versus-complete" / "with_skill" / "run-1"
+             / "grading.json").read_text(encoding="utf-8"))
+        text = self._text(self._grades_html(grading))
+        self.assertIn("2 passed, 0 failed, 9 abstained of 11", text)
+
+    # ---- the previous contract -------------------------------------------
+
+    def test_a_legacy_boolean_is_named_as_the_previous_contract(self):
+        text = self._text(self._grades_html(self.legacy_grading))
+        self.assertIn("previous contract", text)
+        # And NOT translated: `false` meant either "verified false" or "could
+        # not tell", and the file does not say which.
+        self.assertNotIn('class="assertion-status fail"',
+                         self._grades_html(self.legacy_grading))
+        self.assertNotIn('class="assertion-status pass"',
+                         self._grades_html(self.legacy_grading))
+
+    def test_generate_review_reports_the_previous_contract_on_stderr(self):
+        out = self.root.parent / "legacy-out.html"
+        result = subprocess.run(
+            [sys.executable, str(VIEWER_DIR / "generate_review.py"),
+             str(self.root / "previous-contract-workspace" / "iteration-1"),
+             "--skill-name", "demo", "--static", str(out)],
+            capture_output=True, text=True, encoding="utf-8", timeout=120)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("previous grading contract", result.stderr)
+        self.assertIn("validate_grading", result.stderr)
 
 
 if __name__ == "__main__":

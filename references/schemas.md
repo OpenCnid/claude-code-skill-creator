@@ -259,26 +259,36 @@ quantitative side of the loop rests on, and the one whose field names are most o
   "expectations": [
     {
       "text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}",
-      "passed": true,
+      "verdict": "pass",
+      "abstainReason": null,
       "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"
     },
     {
       "text": "{Second_Assertion_Copied_Character_For_Character}",
-      "passed": false,
+      "verdict": "fail",
+      "abstainReason": null,
       "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"
+    },
+    {
+      "text": "{Third_Assertion_Copied_Character_For_Character}",
+      "verdict": "abstain",
+      "abstainReason": "evidence",
+      "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"
     }
   ],
   "summary": {
     "passed": 1,
     "failed": 1,
-    "total": 2,
+    "abstained": 1,
+    "total": 3,
     "pass_rate": 0.5
   }
 }
 ```
 
-The booleans, the integers and `pass_rate` are literal because their **types** are the contract and
-the validator checks the arithmetic between them. Everything a grader would have to judge is a slot.
+The enum members, the integers and `pass_rate` are literal because their **types and closed values**
+are the contract and the validator checks the arithmetic between them. Everything a grader would have
+to judge is a slot.
 
 **Fields**
 
@@ -286,16 +296,81 @@ the validator checks the arithmetic between them. Everything a grader would have
   - `text` — string. The assertion **copied character-for-character** from `eval_metadata.json`. The
     comparison table lines expectations up across configurations by exact string equality; one
     reworded word splits a single assertion into two half-filled rows that read as "never evaluated".
-  - `passed` — JSON boolean. Not `"true"`. A string is truthy everywhere downstream, so a
-    string-typed `passed` corrupts results rather than merely looking untidy.
-  - `evidence` — string. The quote or file observation behind the verdict. Required: a graded result
-    without it cannot be rechecked.
+  - `verdict` — JSON string, exactly one of `"pass"`, `"fail"`, `"abstain"`. Not a boolean, and not a
+    boolean spelled as a string. This is the **one** authoritative field: the old boolean `passed` was
+    removed, not kept alongside, because two representations of one fact that must agree are a drift
+    surface.
+  - `abstainReason` — JSON string, exactly one of `"jurisdiction"`, `"evidence"`, or `null`. Required
+    when and only when `verdict` is `"abstain"`; `null` or omitted otherwise, and a non-null reason
+    beside a `pass` or a `fail` is an error. `jurisdiction` means the expectation is outside what this
+    judge can rule on. `evidence` means it is in jurisdiction, but the evidence a ruling needed was not
+    in hand.
+  - `evidence` — string. The quote or file observation behind the verdict. Required, including on an
+    abstention — there the evidence field says what a ruling would have needed and where it was looked
+    for, which is what makes an abstention recheckable rather than a shrug.
 - `summary` — aggregate counts over `expectations`.
-  - `passed`, `failed`, `total` — JSON integers. `passed + failed == total == len(expectations)`.
-    All three equalities are enforced.
-  - `pass_rate` — JSON number in `[0.0, 1.0]`. Never a string, never a percentage. It is checked
-    against the expectations array with a tolerance of 0.01, so a rounded two-decimal value for a
-    repeating fraction is accepted.
+  - `passed`, `failed`, `abstained`, `total` — JSON integers.
+    `passed + failed + abstained == total == len(expectations)`. Every equality is enforced, and each
+    count is cross-checked against the verdicts in the array.
+  - `pass_rate` — JSON number in `[0.0, 1.0]`, **or `null`**. Never a string, never a percentage. It is
+    checked against the expectations array with a tolerance of 0.01, so a rounded two-decimal value for
+    a repeating fraction is accepted.
+
+    `pass_rate = passed / (passed + failed)`. **Abstentions leave the denominator**, and the rate is
+    `null` when that denominator is zero.
+
+### Why abstention leaves the denominator
+
+`pass_rate` answers one question: *of the expectations this judge actually ruled on, what fraction did
+the run satisfy?* An abstention is the judge declining to rule. Putting it in the denominator answers a
+different question — *of everything anyone asked about, what fraction was demonstrated?* — and then
+prints the answer under the first question's name.
+
+The two diverge in the direction that matters. Under the previous contract there was no third state and
+`agents/grader.md` resolved the gap explicitly: *"when you genuinely cannot tell, it fails."* So an
+expectation the judge had no way to check counted as evidence **against** the skill. A skill whose evals
+asked about things the outputs could not show scored badly for a property of the eval set, and the
+number carried no trace of it. That is this codebase's own defect class — a confident number over data
+that does not support it — sitting inside the instrument that produces the numbers.
+
+Keeping abstentions in the denominator has a second cost: it makes the rate move for reasons that have
+nothing to do with the skill. Add a transcript-only assertion and the rate drops; supply a transcript
+next iteration and it rises. Nothing about the skill changed either time.
+
+So the rate is computed over the ruled-on set, and the abstentions are reported **beside** it rather
+than folded into it. This is the same rule as C4's `—` for a missing `timing.json`, applied one level
+in: absent data stays absent instead of being substituted with a number that renders as a legitimate
+measurement.
+
+The denominator can go to zero, and that is why `pass_rate` is nullable. A run whose expectations all
+abstained has **no** pass rate. It is not 0%, it is not 100%, and it contributes nothing to a mean or a
+delta — `aggregate_benchmark` drops it exactly as it drops a missing duration. Writing `0.0` there is
+the failure this whole rewrite exists to close, and the validator rejects it by name.
+
+The trade runs both ways and neither end is safe. A judge that abstains freely produces a benchmark
+measuring nothing while looking rigorous — a 100% pass rate over two graded checks and nine abstentions
+is a much weaker result than 100% over eleven, and `pass_rate` alone renders them identically. That is
+why the abstention count travels with every rate: into `benchmark.json`, into `benchmark.md`, and onto
+the viewer, so the reader who sees the rate also sees what it was computed over.
+
+### Migrating from the previous contract
+
+A `grading.json` carrying the boolean `passed` is not malformed, it is last version's format, and the
+validator says so by name rather than reporting a type error:
+
+| Previous contract | This contract |
+|---|---|
+| `{"passed": true}` | `{"verdict": "pass", "abstainReason": null}` |
+| `{"passed": false}` — evidence showed it false | `{"verdict": "fail", "abstainReason": null}` |
+| `{"passed": false}` — the judge could not tell | `{"verdict": "abstain", "abstainReason": "evidence"}` |
+| `{"passed": false}` — not this judge's call | `{"verdict": "abstain", "abstainReason": "jurisdiction"}` |
+| `summary` without `abstained` | add `abstained`; `passed + failed + abstained == total` |
+| `pass_rate = passed / total` | `pass_rate = passed / (passed + failed)`, `null` at a zero denominator |
+
+The third and fourth rows are the whole point of the change, and they are the ones a mechanical
+migration cannot do for you: the previous contract wrote the same byte for all three of "verified
+false", "could not tell", and "not my call", so the distinction has to be recovered from the evidence
+text or the run re-graded. A migration that maps every `false` to `"fail"` preserves the defect.
 
 ### Optional blocks
 
@@ -307,19 +382,28 @@ substantive for them. Omission is a normal outcome.
   "expectations": [
     {
       "text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}",
-      "passed": true,
+      "verdict": "pass",
+      "abstainReason": null,
       "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"
     },
     {
       "text": "{Second_Assertion_Copied_Character_For_Character}",
-      "passed": false,
+      "verdict": "fail",
+      "abstainReason": null,
       "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"
+    },
+    {
+      "text": "{Third_Assertion_Copied_Character_For_Character}",
+      "verdict": "abstain",
+      "abstainReason": "jurisdiction",
+      "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"
     }
   ],
   "summary": {
     "passed": 1,
     "failed": 1,
-    "total": 2,
+    "abstained": 1,
+    "total": 3,
     "pass_rate": 0.5
   },
   "claims": [
@@ -371,10 +455,15 @@ Formal Grades panel and per-eval comparison table.
 
 **Checker:** `python -m scripts.validate_grading <path>`, where `<path>` is a single `grading.json` or
 an iteration directory to walk. It checks placement against [§1](#1-where-these-files-live), the field
-names (including the aliases graders reach for — `met`, `result`, `success` for `passed`; `name`,
-`assertion`, `description` for `text`; `details`, `reason`, `justification` for `evidence`), the JSON
-types, and the summary arithmetic. Exits non-zero on any error. Run it before aggregating; a wrong
-field name does not raise on its own, it aggregates to a clean, plausible, wrong number.
+names (including the aliases graders reach for — `met`, `result`, `success`, `outcome`, `status` for
+`verdict`; `name`, `assertion`, `description` for `text`; `details`, `reason`, `justification` for
+`evidence`; `abstain_reason` for `abstainReason`), the `verdict` enum, the `abstainReason` conditional,
+the JSON types, and the summary arithmetic including the null-rate rule. Exits non-zero on any error.
+Run it before aggregating; a wrong field name does not raise on its own, it aggregates to a clean,
+plausible, wrong number.
+
+A file in the previous contract's shape gets its own diagnosis rather than a type error — it names the
+contract that changed and prints the migration table above.
 
 ---
 
@@ -397,8 +486,14 @@ The JSON is read by code, which needs a number it can parse and compare — `pas
 `0.0`–`1.0` fraction it is everywhere else in the schema. The markdown is read by a person, for whom
 a bare `+0.75` next to a row labelled with percentages is ambiguous between a fraction and a
 percentage. `pp` is percentage *points*, the difference between two percentages. Do not "fix" either
-one to match the other. `benchmark.md`'s per-eval table also carries a `Paired` column (`yes`/`no`)
-that has no JSON counterpart — the JSON records the same fact as an `exclusions` entry.
+one to match the other. `benchmark.md`'s per-eval table also carries a `Paired` column
+(`yes` / `no` / `no rate`) that has no JSON counterpart — the JSON records the unpaired case as an
+`exclusions` entry, and `no rate` as a `null` `pass_rate` on the runs themselves. The two are different
+findings: `no` means one configuration never ran the eval, `no rate` means both ran it and at least one
+produced no rate to compare, which under [§6](#6-gradingjson) means its expectations all abstained.
+
+`benchmark.md` also carries an `## Abstentions` section and an `Abst.` column in the per-eval table.
+Both render `run_summary.<config>.abstention`; neither invents anything the JSON does not hold.
 
 The block below is the aggregator's own output, reproduced verbatim, over a two-configuration
 workspace built from the `grading.json` and `timing.json` frames in [§5](#5-timingjson) and
@@ -425,10 +520,11 @@ with no invented content in it.
       "eval_name": "{Descriptive_Slug_Matching_The_Directory_Suffix}",
       "configuration": "with_skill",
       "run_number": 1,
-      "result": {"pass_rate": 0.5, "passed": 1, "failed": 1, "total": 2, "time_seconds": 2.0, "tokens": 1000},
+      "result": {"pass_rate": 0.5, "passed": 1, "failed": 1, "abstained": 1, "total": 3, "time_seconds": 2.0, "tokens": 1000},
       "expectations": [
-        {"text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}", "passed": true, "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"},
-        {"text": "{Second_Assertion_Copied_Character_For_Character}", "passed": false, "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"}
+        {"text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}", "verdict": "pass", "abstainReason": null, "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"},
+        {"text": "{Second_Assertion_Copied_Character_For_Character}", "verdict": "fail", "abstainReason": null, "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"},
+        {"text": "{Third_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "evidence", "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"}
       ],
       "notes": []
     },
@@ -437,10 +533,11 @@ with no invented content in it.
       "eval_name": "{Descriptive_Slug_Matching_The_Directory_Suffix}",
       "configuration": "without_skill",
       "run_number": 1,
-      "result": {"pass_rate": 0.0, "passed": 0, "failed": 2, "total": 2, "time_seconds": 1.0, "tokens": 2000},
+      "result": {"pass_rate": 0.0, "passed": 0, "failed": 2, "abstained": 1, "total": 3, "time_seconds": 1.0, "tokens": 2000},
       "expectations": [
-        {"text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}", "passed": false, "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"},
-        {"text": "{Second_Assertion_Copied_Character_For_Character}", "passed": false, "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"}
+        {"text": "{Assertion_Copied_Character_For_Character_From_eval_metadata_assertions}", "verdict": "fail", "abstainReason": null, "evidence": "{Quoted_Text_Or_File_State_Another_Reader_Could_Recheck}"},
+        {"text": "{Second_Assertion_Copied_Character_For_Character}", "verdict": "fail", "abstainReason": null, "evidence": "{Which_Evidence_Was_Missing_Or_Which_Evidence_Contradicted_It}"},
+        {"text": "{Third_Assertion_Copied_Character_For_Character}", "verdict": "abstain", "abstainReason": "evidence", "evidence": "{What_A_Ruling_Would_Have_Needed_And_Where_It_Was_Looked_For}"}
       ],
       "notes": []
     }
@@ -450,12 +547,14 @@ with no invented content in it.
       "pass_rate": {"mean": 0.5, "stddev": null, "min": 0.5, "max": 0.5, "n": 1, "missing": 0},
       "time_seconds": {"mean": 2.0, "stddev": null, "min": 2.0, "max": 2.0, "n": 1, "missing": 0},
       "tokens": {"mean": 1000.0, "stddev": null, "min": 1000, "max": 1000, "n": 1, "missing": 0},
+      "abstention": {"abstained": 1, "graded": 2, "total": 3, "rate": 0.3333, "reasons": {"jurisdiction": 0, "evidence": 1, "untyped": 0}, "runs": 1, "runs_without_pass_rate": 0},
       "runs": 1
     },
     "without_skill": {
       "pass_rate": {"mean": 0.0, "stddev": null, "min": 0.0, "max": 0.0, "n": 1, "missing": 0},
       "time_seconds": {"mean": 1.0, "stddev": null, "min": 1.0, "max": 1.0, "n": 1, "missing": 0},
       "tokens": {"mean": 2000.0, "stddev": null, "min": 2000, "max": 2000, "n": 1, "missing": 0},
+      "abstention": {"abstained": 1, "graded": 2, "total": 3, "rate": 0.3333, "reasons": {"jurisdiction": 0, "evidence": 1, "untyped": 0}, "runs": 1, "runs_without_pass_rate": 0},
       "runs": 1
     },
     "delta": {
@@ -532,10 +631,14 @@ rather than inferred by whatever draws the table. When either side has no usable
     `without_skill` and `old_skill` are the recognized names; the viewer groups and colors by this
     exact string.
   - `run_number` — the integer `K` from `run-<K>`.
-  - `result` — exactly `pass_rate`, `passed`, `failed`, `total` from `grading.json`'s `summary`, plus
-    `time_seconds` and `tokens` from `timing.json`. Nothing else. **A value with no source for this
-    particular run is `null`, never `0`** — a missing `timing.json` gives `"tokens": null`, and the
-    cell renders `—`.
+  - `result` — exactly `pass_rate`, `passed`, `failed`, `abstained`, `total` from `grading.json`'s
+    `summary`, plus `time_seconds` and `tokens` from `timing.json`. Nothing else. **A value with no
+    source for this particular run is `null`, never `0`** — a missing `timing.json` gives
+    `"tokens": null`, and the cell renders `—`.
+
+    `pass_rate` is `null` for a run whose expectations all abstained ([§6](#6-gradingjson)). It stays
+    `null` the whole way through: the statistics drop it rather than average it, no delta uses it, and
+    every cell it feeds renders `—`. Such a run is not a 0% run and must never render as one.
 
     `output_chars`, `tool_calls` and `errors` used to sit here and are now **gone**, not nulled.
     Their only source was the `execution_metrics` block, which was fed by `metrics.json`, which never
@@ -548,7 +651,27 @@ rather than inferred by whatever draws the table. When either side has no usable
 - `run_summary.<config>` — per-configuration `pass_rate`, `time_seconds` and `tokens`, each with
   `mean`, `stddev`, `min`, `max`, plus `n` (runs that contributed a value) and `missing` (runs that
   had none). `stddev` is the sample (n−1) standard deviation and is `null` — not `0.0` — when `n` is
-  1, because one sample has no spread to report. `runs` is the configuration's total run count.
+  1, because one sample has no spread to report. `runs` is the configuration's total run count. The
+  whole `pass_rate` block is `null` when no run of that configuration produced a rate, which now
+  includes the case where every expectation in every run abstained.
+- `run_summary.<config>.abstention` — the counts every rate above must be read against, or `null` when
+  no run carried usable counts. `abstained`, `graded` (`passed + failed`) and `total` are pooled over
+  every expectation in every run of that configuration; `rate` is `abstained / total`, or `null` when
+  `total` is zero. `reasons` splits the abstentions into `jurisdiction`, `evidence` and `untyped` —
+  a wall of `jurisdiction` says the eval set is asking this judge questions it cannot answer, a wall of
+  `evidence` says the runs are not producing what a ruling needs, and they call for different fixes.
+  `runs` is how many runs contributed counts and `runs_without_pass_rate` is how many produced no rate
+  at all.
+
+  **`abstention` is deliberately not a delta metric and carries no polarity.** Every other metric
+  declares which direction is better ([below](#comparison-direction)); abstention has no honest answer.
+  A judge that abstains freely produces a benchmark measuring nothing while looking rigorous, and a
+  judge that never abstains is the defect C16 closed. The number is reported and the judgment is left
+  to the reader — who should read it against the pass rate beside it, and against the same figure from
+  the previous iteration, where a jump is a judge that has drifted rather than a skill that changed.
+
+  This is why the counts travel: `pass_rate` alone renders 100% over two graded checks and nine
+  abstentions identically to 100% over eleven, and those are not the same result.
 - `exclusions` — one object per run left out of the statistics, each with `path`, a one-line
   `reason`, and `errors`. The omission is visible in the artifact, not only in a console line that
   scrolled past. `reason` opens with a `[C12:<condition>=<severity>]` token, the same token the
@@ -565,8 +688,8 @@ rather than inferred by whatever draws the table. When either side has no usable
     "path": "...\\eval-0-broken\\with_skill\\run-1\\grading.json",
     "reason": "[C12:schema_invalid=error] ... failed grading.json schema validation",
     "errors": [
-      "expectations[0]: has 'met' but the viewer reads 'passed' - rename it",
-      "summary.pass_rate: must be a number in [0.0, 1.0], got str ('100%')"
+      "expectations[0]: has 'met' where the contract has 'verdict' ...",
+      "summary.pass_rate: must be a number in [0.0, 1.0] or null, got str ('100%')"
     ]
   }
   ```
@@ -970,8 +1093,14 @@ not substitute for each other:
 | `assertions` | `evals/evals.json`, `eval_metadata.json` | the **input** set an author writes |
 | `expectations` | `grading.json`, `benchmark.json`, the comparator's `expectations` input | the **graded** results a grader returns |
 
-`assertions` are strings. `expectations` are objects, one per assertion, carrying `text`, `passed`
-and `evidence`. The text inside an `expectation` is the assertion copied character-for-character.
+`assertions` are strings. `expectations` are objects, one per assertion, carrying `text`, `verdict`,
+`abstainReason` and `evidence`. The text inside an `expectation` is the assertion copied
+character-for-character.
+
+The comparator's `expectation_results.details[]` ([§9](#9-blind-comparison-artifacts)) is a third
+thing again and keeps its own boolean `passed`. It is not a graded verdict on a run — it is one
+candidate's satisfaction of a statement inside a head-to-head comparison, written by a different agent
+into a different file, and no aggregation reads it. Contract C16 governs `grading.json` only.
 
 The validator flags both mistakes by name: an `assertions` key in `grading.json`, and an
 `expectations` key in `eval_metadata.json`.
@@ -987,7 +1116,7 @@ your workspace.
 
 | File | Runtime check | Build-time check |
 |---|---|---|
-| `grading.json` | `python -m scripts.validate_grading <path> [--json]` | field names vs `agents/grader.md`; required-vs-omittable blocks probed |
+| `grading.json` | `python -m scripts.validate_grading <path> [--json]` | field names vs `agents/grader.md`; required-vs-omittable blocks probed; every example in [§6](#6-gradingjson) executed against the validator |
 | `timing.json` | same command; validated as a sibling of each `grading.json` | — |
 | `eval_metadata.json` | same command; validated per eval directory | — |
 | workspace layout | same command; unreachable files are errors, legacy-flat is a warning | — |

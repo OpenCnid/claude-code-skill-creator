@@ -2,18 +2,21 @@
   "expectations": [
     {
       "text": "expectation 1",
-      "passed": true,
+      "verdict": "pass",
+      "abstainReason": null,
       "evidence": "output matched the expectation"
     },
     {
       "text": "expectation 2",
-      "passed": true,
+      "verdict": "pass",
+      "abstainReason": null,
       "evidence": "output matched the expectation"
     }
   ],
   "summary": {
     "passed": 2,
     "failed": 0,
+    "abstained": 0,
     "total": 2,
     "pass_rate": 1.0
   }

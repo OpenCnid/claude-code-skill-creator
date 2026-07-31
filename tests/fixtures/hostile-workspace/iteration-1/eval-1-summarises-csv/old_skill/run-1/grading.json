@@ -2,19 +2,28 @@
   "expectations": [
     {
       "text": "Mentions the total",
-      "passed": false,
+      "verdict": "fail",
+      "abstainReason": null,
       "evidence": "row 0 checked"
     },
     {
       "text": "Two sentences or fewer",
-      "passed": false,
+      "verdict": "fail",
+      "abstainReason": null,
       "evidence": "row 1 checked"
+    },
+    {
+      "text": "Follows the documented ordering of steps",
+      "verdict": "abstain",
+      "abstainReason": "evidence",
+      "evidence": "row 2 checked"
     }
   ],
   "summary": {
     "passed": 0,
     "failed": 2,
-    "total": 2,
+    "abstained": 1,
+    "total": 3,
     "pass_rate": 0.0
   }
 }

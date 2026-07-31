@@ -41,6 +41,18 @@ Three workspaces, each aimed at a specific defect class:
   workspace/               entirely, a run that lost only its timing.json, and
                            an eval excluded from the delta but counted in its
                            own configuration's column.
+  abstain-workspace/       Contract C16 end to end. One eval where every check
+                           abstained (no pass rate anywhere -- a `0` in any
+                           cell is the defect), one where 100% over 2 ruled-on
+                           checks sits beside 100% over 11 (the two must not
+                           render alike), and one carrying both typed reasons
+                           so `jurisdiction` and `evidence` are separable on
+                           screen.
+  previous-contract-       grading.json in the retired boolean shape. The page
+  workspace/               must name it as the previous contract and show the
+                           checks as unrecorded rather than guessing whether
+                           each `false` meant "verified false" or "could not
+                           tell".
 """
 
 import json
@@ -74,12 +86,73 @@ def svg(tag):
     return '<svg onload="window.__X_FIRED_' + tag + '=1"></svg>'
 
 
-def expectations(texts, passed_flags, evidence_overrides=None):
+def expectations(texts, verdicts, evidence_overrides=None, reasons=None):
+    """Contract-C16 expectation entries.
+
+    `verdicts` accepts the three verdict strings, and also `True`/`False` for
+    the many call sites here that predate the ternary contract and mean exactly
+    "pass"/"fail". `reasons` supplies `abstainReason` by index; the default for
+    an abstention is `evidence`, since "the artifacts did not carry what a
+    ruling needed" is the common case.
+    """
     out = []
-    for i, (text, ok) in enumerate(zip(texts, passed_flags)):
+    for i, (text, verdict) in enumerate(zip(texts, verdicts)):
+        if verdict is True:
+            verdict = "pass"
+        elif verdict is False:
+            verdict = "fail"
         evidence = (evidence_overrides or {}).get(i, "row %d checked" % i)
-        out.append({"text": text, "passed": ok, "evidence": evidence})
+        reason = None
+        if verdict == "abstain":
+            reason = (reasons or {}).get(i, "evidence")
+        out.append({"text": text, "verdict": verdict,
+                    "abstainReason": reason, "evidence": evidence})
     return out
+
+
+def summary_of(exps):
+    """The C16 summary for a list of expectations.
+
+    Derived, never hand-typed: `pass_rate` excludes abstentions from the
+    denominator and is None when nothing was ruled on, and a fixture that
+    restated those by hand would keep passing after the rule moved.
+    """
+    counts = {"pass": 0, "fail": 0, "abstain": 0}
+    for exp in exps:
+        verdict = exp.get("verdict")
+        if verdict in counts:
+            counts[verdict] += 1
+    graded = counts["pass"] + counts["fail"]
+    return {
+        "passed": counts["pass"],
+        "failed": counts["fail"],
+        "abstained": counts["abstain"],
+        "total": len(exps),
+        "pass_rate": round(counts["pass"] / graded, 4) if graded else None,
+    }
+
+
+def result_of(exps, time_seconds=None, tokens=None):
+    """A `runs[].result` block for a list of expectations."""
+    summary = summary_of(exps)
+    return {
+        "pass_rate": summary["pass_rate"],
+        "passed": summary["passed"],
+        "failed": summary["failed"],
+        "abstained": summary["abstained"],
+        "total": summary["total"],
+        "time_seconds": time_seconds,
+        "tokens": tokens,
+    }
+
+
+def _abstention(abstained, graded, total, reasons, runs, runs_without_rate=0):
+    filled = {"jurisdiction": 0, "evidence": 0, "untyped": 0}
+    filled.update(reasons)
+    return {"abstained": abstained, "graded": graded, "total": total,
+            "rate": round(abstained / total, 4) if total else None,
+            "reasons": filled, "runs": runs,
+            "runs_without_pass_rate": runs_without_rate}
 
 
 def _stat(mean, stddev, lo, hi, n, missing):
@@ -144,14 +217,15 @@ def build(target: Path) -> Path:
     )
     # An expectation the grader forgot to give a text field: it used to render
     # as a bare checkmark indistinguishable from a normal pass.
-    e0_primary[9] = {"passed": False, "evidence": "no text field was written for this check"}
+    e0_primary[9] = {"verdict": "fail", "abstainReason": None,
+                     "evidence": "no text field was written for this check"}
     e0_baseline = expectations(
         baseline_texts,
         [True, True, False, False, False, False, False, False, False, False])
 
     wj(e0 + "/with_skill/run-1/grading.json", {
         "expectations": e0_primary,
-        "summary": {"passed": 5, "failed": 5, "total": 10, "pass_rate": 0.5},
+        "summary": summary_of(e0_primary),
     })
     wj(e0 + "/with_skill/run-1/timing.json",
        {"total_tokens": 1200, "duration_ms": 30000, "total_duration_seconds": 30.0})
@@ -159,7 +233,7 @@ def build(target: Path) -> Path:
     w(e0 + "/old_skill/run-1/outputs/report.html", "<h1>Q3 report</h1>\n<p>bare</p>\n")
     wj(e0 + "/old_skill/run-1/grading.json", {
         "expectations": e0_baseline,
-        "summary": {"passed": 2, "failed": 8, "total": 10, "pass_rate": 0.2},
+        "summary": summary_of(e0_baseline),
     })
     wj(e0 + "/old_skill/run-1/timing.json",
        {"total_tokens": 900, "duration_ms": 45000, "total_duration_seconds": 45.0})
@@ -167,9 +241,18 @@ def build(target: Path) -> Path:
     # eval 1 is small (2 checks vs 10), which is what makes the macro-average
     # 75% while the true pooled rate is 58%.
     e1 = base + "/eval-1-summarises-csv"
-    e1_texts = ["Mentions the total", "Two sentences or fewer"]
-    e1_primary = expectations(e1_texts, [True, True])
-    e1_baseline = expectations(e1_texts, [False, False])
+    e1_texts = ["Mentions the total", "Two sentences or fewer",
+                "Follows the documented ordering of steps"]
+    # The third check is about HOW the work was done and this run kept no
+    # transcript, so neither grader could rule on it. Under the previous
+    # contract that was a fail on both sides -- an expectation nobody could
+    # check, counted twice as evidence against both configurations. The two
+    # reasons differ deliberately: the primary's judge was out of jurisdiction,
+    # the baseline's was in jurisdiction and had nothing to read.
+    e1_primary = expectations(e1_texts, [True, True, "abstain"],
+                              reasons={2: "jurisdiction"})
+    e1_baseline = expectations(e1_texts, [False, False, "abstain"],
+                               reasons={2: "evidence"})
 
     wj(e1 + "/eval_metadata.json", {
         "eval_id": 1,
@@ -180,14 +263,14 @@ def build(target: Path) -> Path:
     w(e1 + "/with_skill/run-1/outputs/summary.txt", "Total sales were 1.2M. " + NONASCII + "\n")
     wj(e1 + "/with_skill/run-1/grading.json", {
         "expectations": e1_primary,
-        "summary": {"passed": 2, "failed": 0, "total": 2, "pass_rate": 1.0},
+        "summary": summary_of(e1_primary),
     })
     # NO timing.json for this run. Contract C4: unknown, never 0.
 
     w(e1 + "/old_skill/run-1/outputs/summary.txt", "Sales happened.\n")
     wj(e1 + "/old_skill/run-1/grading.json", {
         "expectations": e1_baseline,
-        "summary": {"passed": 0, "failed": 2, "total": 2, "pass_rate": 0.0},
+        "summary": summary_of(e1_baseline),
     })
     wj(e1 + "/old_skill/run-1/timing.json",
        {"total_tokens": 900, "duration_ms": 45000, "total_duration_seconds": 45.0})
@@ -205,22 +288,14 @@ def build(target: Path) -> Path:
 
     runs = [
         run(0, "emits-html-report " + svg("EVALNAME"), "with_skill",
-            {"pass_rate": 0.5, "passed": 5, "failed": 5, "total": 10,
-             "time_seconds": 30.0, "tokens": 1200},
-            e0_primary),
+            result_of(e0_primary, 30.0, 1200), e0_primary),
         run(0, "emits-html-report", "old_skill",
-            {"pass_rate": 0.2, "passed": 2, "failed": 8, "total": 10,
-             "time_seconds": 45.0, "tokens": 900},
-            e0_baseline),
+            result_of(e0_baseline, 45.0, 900), e0_baseline),
+        # This run had no timing.json. Absent, not zero.
         run(1, "summarises-csv", "with_skill",
-            # This run had no timing.json. Absent, not zero.
-            {"pass_rate": 1.0, "passed": 2, "failed": 0, "total": 2,
-             "time_seconds": None, "tokens": None},
-            e1_primary),
+            result_of(e1_primary, None, None), e1_primary),
         run(1, "summarises-csv", "old_skill",
-            {"pass_rate": 0.0, "passed": 0, "failed": 2, "total": 2,
-             "time_seconds": 45.0, "tokens": 900},
-            e1_baseline),
+            result_of(e1_baseline, 45.0, 900), e1_baseline),
     ]
 
     benchmark = {
@@ -248,12 +323,17 @@ def build(target: Path) -> Path:
                 # one run had no timing.json: n=1, missing=1, stddev null
                 "time_seconds": _stat(30.0, None, 30.0, 30.0, 1, 1),
                 "tokens": _stat(1200.0, None, 1200, 1200, 1, 1),
+                # 1 abstention of 13 checks; 12 were ruled on. Without this
+                # block the 100% on eval 1 and the 100% a fully-graded run
+                # would produce are the same three characters on the page.
+                "abstention": _abstention(1, 12, 13, {"jurisdiction": 1}, 2),
                 "runs": 2,
             },
             "old_skill": {
                 "pass_rate": _stat(0.10, 0.1414, 0.0, 0.2, 2, 0),
                 "time_seconds": _stat(45.0, 0.0, 45.0, 45.0, 2, 0),
                 "tokens": _stat(900.0, 0.0, 900, 900, 2, 0),
+                "abstention": _abstention(1, 12, 13, {"evidence": 1}, 2),
                 "runs": 2,
             },
             "delta": {
@@ -271,7 +351,7 @@ def build(target: Path) -> Path:
             {
                 "path": "iteration-1/eval-2-dropped/with_skill/run-1/grading.json",
                 "reason": "failed grading.json schema validation " + svg("EXCL"),
-                "errors": ["expectations[0]: has 'met' but the viewer reads 'passed' - rename it"],
+                "errors": ["expectations[0]: has 'met' where the contract has 'verdict'"],
             },
         ],
         "layout_warnings": [
@@ -321,13 +401,13 @@ def build(target: Path) -> Path:
         "eval_id": 0, "eval_name": "flat-layout",
         "prompt": "Legacy flat layout probe. " + NONASCII,
     })
-    for config, rate in (("with_skill", 1.0), ("without_skill", 0.5)):
+    for config, verdicts in (("with_skill", [True, True]),
+                             ("without_skill", [True, False])):
         w(flat + "/" + config + "/outputs/out.txt", config + " output\n")
-        passed = 2 if rate == 1.0 else 1
+        flat_exps = expectations(["Check A", "Check B"], verdicts)
         wj(flat + "/" + config + "/grading.json", {
-            "expectations": expectations(["Check A", "Check B"],
-                                         [True, True] if rate == 1.0 else [True, False]),
-            "summary": {"passed": passed, "failed": 2 - passed, "total": 2, "pass_rate": rate},
+            "expectations": flat_exps,
+            "summary": summary_of(flat_exps),
         })
 
     # =======================================================================
@@ -373,25 +453,21 @@ def build(target: Path) -> Path:
         "assertions": [HEADER, TOTALS, CURRENCY],
     })
 
-    swap_primary = [
-        {"text": HEADER, "passed": True, "evidence": "row 1 is a header"},
-        {"text": TOTALS, "passed": False, "evidence": "totals row is in the middle"},
-        {"text": CURRENCY, "passed": True, "evidence": "GBP with two decimals"},
-    ]
-    swap_baseline = [
-        {"text": TOTALS, "passed": True, "evidence": "totals row is last"},
-        {"text": HEADER, "passed": False, "evidence": "no header row at all"},
-        {"text": CURRENCY_REWORDED, "passed": False, "evidence": "bare integers"},
-    ]
+    swap_primary = expectations(
+        [HEADER, TOTALS, CURRENCY], [True, False, True],
+        {0: "row 1 is a header", 1: "totals row is in the middle",
+         2: "GBP with two decimals"})
+    swap_baseline = expectations(
+        [TOTALS, HEADER, CURRENCY_REWORDED], [True, False, False],
+        {0: "totals row is last", 1: "no header row at all",
+         2: "bare integers"})
 
-    for config, exps, rate in (("with_skill", swap_primary, 2 / 3),
-                               ("without_skill", swap_baseline, 1 / 3)):
+    for config, exps in (("with_skill", swap_primary),
+                         ("without_skill", swap_baseline)):
         w(swap + "/" + config + "/run-1/outputs/table.csv", config + ",1\n")
-        passed = sum(1 for e in exps if e["passed"])
         wj(swap + "/" + config + "/run-1/grading.json", {
             "expectations": exps,
-            "summary": {"passed": passed, "failed": len(exps) - passed,
-                        "total": len(exps), "pass_rate": round(rate, 4)},
+            "summary": summary_of(exps),
         })
         wj(swap + "/" + config + "/run-1/timing.json",
            {"total_tokens": 500, "duration_ms": 10000, "total_duration_seconds": 10.0})
@@ -407,13 +483,9 @@ def build(target: Path) -> Path:
         },
         "runs": [
             run(0, "swapped-order", "with_skill",
-                {"pass_rate": 0.6667, "passed": 2, "failed": 1, "total": 3,
-                 "time_seconds": 10.0, "tokens": 500},
-                swap_primary),
+                result_of(swap_primary, 10.0, 500), swap_primary),
             run(0, "swapped-order", "without_skill",
-                {"pass_rate": 0.3333, "passed": 1, "failed": 2, "total": 3,
-                 "time_seconds": 10.0, "tokens": 500},
-                swap_baseline),
+                result_of(swap_baseline, 10.0, 500), swap_baseline),
         ],
         # One run per configuration: stddev is null, and any renderer that
         # prints "+/- 0" here is inventing a spread it never measured.
@@ -463,17 +535,19 @@ def build(target: Path) -> Path:
         "eval_id": 0, "eval_name": "misnamed-run",
         "prompt": "Anything.", "assertions": ["Check A"],
     })
+    bad_run_primary = expectations(["Check A"], [True], {0: "it is there"})
+    bad_run_baseline = expectations(["Check A"], [False], {0: "absent"})
     w(bad_run + "/with_skill/run-final/outputs/out.txt", "with_skill output\n")
     wj(bad_run + "/with_skill/run-final/grading.json", {
-        "expectations": [{"text": "Check A", "passed": True, "evidence": "it is there"}],
-        "summary": {"passed": 1, "failed": 0, "total": 1, "pass_rate": 1.0},
+        "expectations": bad_run_primary,
+        "summary": summary_of(bad_run_primary),
     })
     wj(bad_run + "/with_skill/run-final/timing.json",
        {"total_tokens": 100, "duration_ms": 1000, "total_duration_seconds": 1.0})
     w(bad_run + "/without_skill/run-1/outputs/out.txt", "without_skill output\n")
     wj(bad_run + "/without_skill/run-1/grading.json", {
-        "expectations": [{"text": "Check A", "passed": False, "evidence": "absent"}],
-        "summary": {"passed": 0, "failed": 1, "total": 1, "pass_rate": 0.0},
+        "expectations": bad_run_baseline,
+        "summary": summary_of(bad_run_baseline),
     })
     wj(bad_run + "/without_skill/run-1/timing.json",
        {"total_tokens": 100, "duration_ms": 1000, "total_duration_seconds": 1.0})
@@ -497,15 +571,14 @@ def build(target: Path) -> Path:
         },
         "runs": [
             run(0, "misnamed-run", "without_skill",
-                {"pass_rate": 0.0, "passed": 0, "failed": 1, "total": 1,
-                 "time_seconds": 1.0, "tokens": 100},
-                [{"text": "Check A", "passed": False, "evidence": "absent"}]),
+                result_of(bad_run_baseline, 1.0, 100), bad_run_baseline),
         ],
         "run_summary": {
             "without_skill": {
                 "pass_rate": _stat(0.0, None, 0.0, 0.0, 1, 0),
                 "time_seconds": _stat(1.0, None, 1.0, 1.0, 1, 0),
                 "tokens": _stat(100.0, None, 100, 100, 1, 0),
+                "abstention": _abstention(0, 1, 1, {}, 1),
                 "runs": 1,
             },
             "delta": {
@@ -553,21 +626,18 @@ def build(target: Path) -> Path:
         configs = ("with_skill", "without_skill") if eval_id != 2 else ("with_skill",)
         for config in configs:
             w(base_dir + "/" + config + "/run-1/outputs/out.txt", config + "\n")
+            mx_exps = expectations(["Check A"], [config == "with_skill"],
+                                   {0: "checked"})
             wj(base_dir + "/" + config + "/run-1/grading.json", {
-                "expectations": [{"text": "Check A", "passed": config == "with_skill",
-                                  "evidence": "checked"}],
-                "summary": {"passed": 1 if config == "with_skill" else 0,
-                            "failed": 0 if config == "with_skill" else 1,
-                            "total": 1, "pass_rate": 1.0 if config == "with_skill" else 0.0},
+                "expectations": mx_exps,
+                "summary": summary_of(mx_exps),
             })
             wj(base_dir + "/" + config + "/run-1/timing.json",
                {"total_tokens": 100, "duration_ms": 2000, "total_duration_seconds": 2.0})
 
     def mx_run(eval_id, name, config, rate, time_s, tokens):
-        return run(eval_id, name, config,
-                   {"pass_rate": rate, "passed": int(rate), "failed": 1 - int(rate),
-                    "total": 1, "time_seconds": time_s, "tokens": tokens},
-                   [{"text": "Check A", "passed": bool(rate), "evidence": "checked"}])
+        exps = expectations(["Check A"], [bool(rate)], {0: "checked"})
+        return run(eval_id, name, config, result_of(exps, time_s, tokens), exps)
 
     wj(mixed_x + "/benchmark.json", {
         "primary": "with_skill",
@@ -593,12 +663,14 @@ def build(target: Path) -> Path:
                 "pass_rate": _stat(1.0, 0.0, 1.0, 1.0, 2, 0),
                 "time_seconds": _stat(2.0, None, 2.0, 2.0, 1, 1),
                 "tokens": _stat(100.0, None, 100, 100, 1, 1),
+                "abstention": _abstention(0, 2, 2, {}, 2),
                 "runs": 2,
             },
             "without_skill": {
                 "pass_rate": _stat(0.0, 0.0, 0.0, 0.0, 2, 0),
                 "time_seconds": _stat(2.0, 0.0, 2.0, 2.0, 2, 0),
                 "tokens": _stat(100.0, 0.0, 100, 100, 2, 0),
+                "abstention": _abstention(0, 2, 2, {}, 2),
                 "runs": 2,
             },
             "delta": {
@@ -612,7 +684,7 @@ def build(target: Path) -> Path:
                 "path": "iteration-1/eval-0-fully-dropped/with_skill/run-1/grading.json",
                 "reason": condition_line("schema_invalid",
                                          "failed grading.json schema validation"),
-                "errors": ["expectations[0]: has 'met' but the viewer reads 'passed'"],
+                "errors": ["expectations[0]: has 'met' where the contract has 'verdict'"],
             },
             # timing only: the grading still counts.
             {
@@ -638,6 +710,146 @@ def build(target: Path) -> Path:
         "layout_warnings": [],
         "notes": [],
     })
+
+    # =======================================================================
+    # abstain-workspace: contract C16 end to end
+    #
+    # Three shapes on one page, and no two of them may render alike:
+    #
+    #   eval 0  every check abstained, in both configurations. There is NO
+    #           pass rate. Every rate cell must read as absent -- a `0%`
+    #           anywhere here says the skill failed everything, about a run
+    #           nothing was ruled against.
+    #   eval 1  100% over 2 ruled-on checks with 9 abstentions, against 100%
+    #           over 11 ruled-on checks. Both configurations read `100%`. The
+    #           abstention counts are the only thing separating a thin result
+    #           from a complete one, so they travel beside every rate.
+    #   eval 2  one abstention of each typed reason, so the two are visible on
+    #           screen and distinguishable from each other.
+    # =======================================================================
+    ab = "abstain-workspace/iteration-1"
+
+    ab0_texts = ["Follows the documented ordering of steps",
+                 "Handles the malformed row"]
+    ab0 = expectations(ab0_texts, ["abstain", "abstain"],
+                       {0: "no transcript_path was supplied; outputs/ holds "
+                           "report.csv only",
+                        1: "the malformed-row case was not exercised by this run"},
+                       reasons={0: "jurisdiction", 1: "evidence"})
+
+    ab1_texts = ["Check %d" % (i + 1) for i in range(11)]
+    ab1_primary = expectations(
+        ab1_texts, [True, True] + ["abstain"] * 9)
+    ab1_baseline = expectations(ab1_texts, [True] * 11)
+
+    ab2_texts = ["Uses the house date format", "Was written by the skill"]
+    ab2 = expectations(ab2_texts, ["abstain", "abstain"],
+                       reasons={0: "evidence", 1: "jurisdiction"})
+
+    ab_evals = (
+        (0, "every-check-abstained", ab0, ab0),
+        (1, "thin-versus-complete", ab1_primary, ab1_baseline),
+        (2, "both-reasons", ab2, ab2),
+    )
+
+    for eval_id, slug, primary_exps, baseline_exps in ab_evals:
+        eval_dir = ab + "/eval-%d-%s" % (eval_id, slug)
+        wj(eval_dir + "/eval_metadata.json", {
+            "eval_id": eval_id, "eval_name": slug,
+            "prompt": "Task %d." % eval_id,
+            "assertions": [e["text"] for e in primary_exps],
+        })
+        for config, exps in (("with_skill", primary_exps),
+                             ("without_skill", baseline_exps)):
+            w(eval_dir + "/" + config + "/run-1/outputs/out.txt", config + "\n")
+            wj(eval_dir + "/" + config + "/run-1/grading.json", {
+                "expectations": exps,
+                "summary": summary_of(exps),
+            })
+            wj(eval_dir + "/" + config + "/run-1/timing.json",
+               {"total_tokens": 100, "duration_ms": 2000,
+                "total_duration_seconds": 2.0})
+
+    ab_runs = []
+    for eval_id, slug, primary_exps, baseline_exps in ab_evals:
+        ab_runs.append(run(eval_id, slug, "with_skill",
+                           result_of(primary_exps, 2.0, 100), primary_exps))
+        ab_runs.append(run(eval_id, slug, "without_skill",
+                           result_of(baseline_exps, 2.0, 100), baseline_exps))
+
+    wj(ab + "/benchmark.json", {
+        "primary": "with_skill",
+        "baseline": "without_skill",
+        "metadata": {
+            "skill_name": "abstain-demo",
+            "timestamp": "2026-07-31T00:00:00Z",
+            "evals_run": [0, 1, 2],
+            "runs_per_configuration": 3,
+            "runs_per_configuration_by_config": {"with_skill": 3,
+                                                 "without_skill": 3},
+        },
+        "runs": ab_runs,
+        "run_summary": {
+            # with_skill: eval 0 and eval 2 have no rate at all, eval 1 is
+            # 100%. One measured value out of three runs -- and stddev stays
+            # null, because one sample has no spread.
+            "with_skill": {
+                "pass_rate": _stat(1.0, None, 1.0, 1.0, 1, 2),
+                "time_seconds": _stat(2.0, 0.0, 2.0, 2.0, 3, 0),
+                "tokens": _stat(100.0, 0.0, 100, 100, 3, 0),
+                "abstention": _abstention(
+                    13, 2, 15, {"jurisdiction": 2, "evidence": 11}, 3, 2),
+                "runs": 3,
+            },
+            "without_skill": {
+                "pass_rate": _stat(1.0, None, 1.0, 1.0, 1, 2),
+                "time_seconds": _stat(2.0, 0.0, 2.0, 2.0, 3, 0),
+                "tokens": _stat(100.0, 0.0, 100, 100, 3, 0),
+                "abstention": _abstention(
+                    4, 11, 15, {"jurisdiction": 2, "evidence": 2}, 3, 2),
+                "runs": 3,
+            },
+            "delta": {
+                "pass_rate": {"value": 0.0, "formatted": "+0.00",
+                              "polarity": "higher_is_better", "better": None},
+                "time_seconds": {"value": 0.0, "formatted": "+0.0",
+                                 "polarity": "lower_is_better", "better": None},
+                "tokens": {"value": 0.0, "formatted": "+0",
+                           "polarity": "lower_is_better", "better": None},
+            },
+        },
+        "exclusions": [],
+        "layout_warnings": [],
+        "notes": [],
+    })
+
+    # The same tree, graded under the PREVIOUS contract: boolean `passed`, no
+    # `abstained`, and `pass_rate` computed over `total`. Not malformed, just
+    # last version's format. The page must say so and must NOT translate the
+    # booleans -- a `false` there means either "verified false" or "could not
+    # tell", and picking one is the invention C16 removed.
+    prev = "previous-contract-workspace/iteration-1/eval-0-boolean-verdicts"
+    wj(prev + "/eval_metadata.json", {
+        "eval_id": 0, "eval_name": "boolean-verdicts",
+        "prompt": "Task graded before the ternary contract.",
+        "assertions": ["Check A", "Check B"],
+    })
+    for config, flags in (("with_skill", [True, False]),
+                          ("without_skill", [False, False])):
+        w(prev + "/" + config + "/run-1/outputs/out.txt", config + "\n")
+        legacy_exps = [
+            {"text": text, "passed": ok, "evidence": "checked"}
+            for text, ok in zip(["Check A", "Check B"], flags)
+        ]
+        passed = sum(1 for f in flags if f)
+        wj(prev + "/" + config + "/run-1/grading.json", {
+            "expectations": legacy_exps,
+            "summary": {"passed": passed, "failed": len(flags) - passed,
+                        "total": len(flags), "pass_rate": passed / len(flags)},
+        })
+        wj(prev + "/" + config + "/run-1/timing.json",
+           {"total_tokens": 100, "duration_ms": 2000,
+            "total_duration_seconds": 2.0})
 
     return target
 

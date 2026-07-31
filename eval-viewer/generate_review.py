@@ -23,6 +23,15 @@ The legacy flat layout (no run-<K> level) is still read, but it is normalized
 to run-1 and a deprecation warning naming the offending path is printed to
 stderr. Nothing is silently tolerated.
 
+grading.json is embedded verbatim; this script does not interpret verdicts.
+One exception, and it is a disclosure rather than an interpretation: an
+expectation carrying the retired boolean `passed` and no `verdict` is the
+PREVIOUS grading contract (C16), and that is reported to stderr as well as on
+the page. It is not translated here, because `false` under that contract meant
+either "verified false" or "the judge could not tell" and the file does not say
+which -- inventing the distinction is exactly what the contract change removed.
+
+
 Usage:
     python generate_review.py <workspace-path> [--port PORT] [--skill-name NAME]
     python generate_review.py <workspace-path> --previous-workspace /path/to/old/workspace
@@ -397,6 +406,26 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
                 "object (a warning naming the exact fault was printed to the terminal "
                 "that started this viewer). This run contributes to no benchmark number."
             )
+        else:
+            # Contract C16. A boolean `passed` with no `verdict` is the PREVIOUS
+            # grading contract, and the aggregator excludes such a file outright.
+            # The page says so too, but a viewer run on a stale workspace should
+            # not require anyone to notice a banner: the same fact belongs in the
+            # terminal, where it is a one-line instruction rather than a
+            # discovery.
+            legacy = sum(
+                1 for exp in (grading.get("expectations") or [])
+                if isinstance(exp, dict) and "passed" in exp and "verdict" not in exp
+            ) if isinstance(grading, dict) else 0
+            if legacy:
+                warn(
+                    f"{grading_path}: {legacy} expectation(s) carry the retired "
+                    f"boolean 'passed' and no 'verdict'. That is the previous "
+                    f"grading contract; the page shows them as unrecorded rather "
+                    f"than guessing whether each false meant 'verified false' or "
+                    f"'could not tell'. Run `python -m scripts.validate_grading "
+                    f"{grading_path}` for the migration."
+                )
     else:
         grading_note = (
             "No grading.json was written for this run, so it was never graded. Nothing "

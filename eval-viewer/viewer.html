@@ -27,6 +27,13 @@
       --amber-bg: #fbf3e0;
       --red: #c44;
       --red-bg: #fceaea;
+      /* Contract C16's third verdict. Deliberately not green, not red, and
+         not the amber the warning boxes use: an abstention is a finding, not
+         a caution. Deliberately not the muted grey either — grey on this page
+         means "never recorded", and an abstention is the opposite of that. The
+         judge looked and declined to rule. */
+      --slate: #5b6b8a;
+      --slate-bg: #eef1f7;
       --header-bg: #141413;
       --header-text: #faf9f5;
       --radius: 6px;
@@ -334,6 +341,17 @@
     .grade-partial { background: var(--amber-bg); color: var(--amber); }
     .grade-fail { background: var(--red-bg); color: var(--red); }
     .grade-unknown { background: var(--border); color: var(--text-muted); }
+    .grade-abstain { background: var(--slate-bg); color: var(--slate); }
+    /* Sits beside the pass-rate badge and is never optional when there are
+       abstentions. 100% over two graded checks and nine abstentions must not
+       render the same as 100% over eleven. */
+    .grade-abstain-note {
+      font-size: 0.75rem;
+      color: var(--slate);
+      background: var(--slate-bg);
+      border-radius: var(--radius);
+      padding: 0.125rem 0.5rem;
+    }
     .assertion-list {
       list-style: none;
     }
@@ -349,6 +367,23 @@
     }
     .assertion-status.pass { color: var(--green); }
     .assertion-status.fail { color: var(--red); }
+    .assertion-status.abstain { color: var(--slate); }
+    /* The typed reason travels with every abstention. `jurisdiction` and
+       `evidence` call for different fixes — rewrite the assertion, or capture
+       more from the run — so an abstention rendered without its reason has
+       thrown away the actionable half. */
+    .assertion-reason {
+      display: inline-block;
+      margin-left: 0.375rem;
+      padding: 0 0.375rem;
+      border-radius: var(--radius);
+      background: var(--slate-bg);
+      color: var(--slate);
+      font-family: var(--font-sans);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      vertical-align: middle;
+    }
     .assertion-evidence {
       color: var(--text-muted);
       font-size: 0.75rem;
@@ -443,6 +478,7 @@
     /* Colour by goodness, not by arithmetic sign (contract C5). */
     .benchmark-delta-better { color: var(--green); font-weight: 600; }
     .benchmark-delta-worse { color: var(--red); font-weight: 600; }
+    .benchmark-abstain { color: var(--slate); font-weight: 600; }
     .benchmark-caption {
       font-size: 0.75rem;
       color: var(--text-muted);
@@ -779,6 +815,78 @@
         .replace(/\b\w/g, c => c.toUpperCase());
     }
 
+    // ---- Verdicts (contract C16) -------------------------------------------
+    //
+    // Three states, and the third is not "unknown". `abstain` means the judge
+    // looked at this expectation and declined to rule on it — because it was
+    // outside its jurisdiction, or because the evidence a ruling needed was not
+    // in the artifacts. Under the previous contract there were two states and
+    // the grader prompt closed the gap with "when you genuinely cannot tell, it
+    // fails", so a verified-false check and an uncheckable one produced the
+    // identical byte and this page drew them the same red ✗.
+    //
+    // Everything below follows from that being wrong in both directions:
+    //  * an abstention must not be drawn as a failure (the old defect);
+    //  * it must not be drawn as a pass (worse);
+    //  * it must not be drawn as UNKNOWN either, because grey on this page
+    //    means "never recorded" and this was recorded, deliberately, with a
+    //    reason attached;
+    //  * and the reason has to be on screen, because `jurisdiction` and
+    //    `evidence` call for different fixes.
+    const VERDICT_ICON = { pass: "✓", fail: "✗", abstain: "◐" };
+    const VERDICT_CELL_CLASS = {
+      pass: "benchmark-delta-better",
+      fail: "benchmark-delta-worse",
+      abstain: "benchmark-abstain",
+    };
+    const ABSTAIN_REASON_TEXT = {
+      jurisdiction: "outside what this judge could rule on",
+      evidence: "in scope, but the evidence a ruling needed was not in hand",
+    };
+
+    function verdictOf(exp) {
+      if (!exp || typeof exp !== "object") return null;
+      const v = exp.verdict;
+      return (v === "pass" || v === "fail" || v === "abstain") ? v : null;
+    }
+
+    function abstainReasonOf(exp) {
+      const r = exp && exp.abstainReason;
+      return (r === "jurisdiction" || r === "evidence") ? r : null;
+    }
+
+    // A boolean `passed` with no `verdict` is not a malformed check — it is the
+    // PREVIOUS contract, and it is not translatable. Its `false` means either
+    // "verified false" or "could not tell", the two the contract change exists
+    // to separate, and picking one here would be inventing the very
+    // distinction the data does not carry. So it renders as unknown, with a
+    // banner naming the contract. The aggregator never lets one through; only a
+    // benchmark.json left over from before can carry these.
+    function isLegacyExpectation(exp) {
+      return !!exp && typeof exp === "object"
+        && typeof exp.verdict !== "string" && typeof exp.passed === "boolean";
+    }
+
+    function countLegacy(expectations) {
+      return (expectations || []).filter(isLegacyExpectation).length;
+    }
+
+    const LEGACY_VERDICT_WARNING =
+      "These checks were graded under the previous contract, which had only "
+      + "true/false. Its `false` means either “verified false” or "
+      + "“the judge could not tell”, and nothing in the file says "
+      + "which — so they are shown as unrecorded rather than guessed at. "
+      + "Re-grade the run, or migrate each entry to a verdict of pass, fail or "
+      + "abstain.";
+
+    // Rendered next to every rate, never instead of one.
+    function abstainNoteHtml(abstained, total) {
+      if (!isNum(abstained) || abstained <= 0) return "";
+      const of = isNum(total) && total > 0 ? " of " + total : "";
+      return '<span class="grade-abstain-note">' + escapeHtml(
+        abstained + of + " abstained — not counted in the rate") + "</span>";
+    }
+
     // ---- Init ----
     async function init() {
       // Load saved feedback from server — but only if this isn't a fresh
@@ -1058,9 +1166,19 @@
 
         // Summary line. A pass_rate that was never written stays unknown; the
         // 50-79% band gets its own badge instead of falling through unstyled.
+        //
+        // A null pass_rate now has a SECOND cause, and the two must not read
+        // alike: the grader may not have written one (unknown), or every
+        // expectation may have abstained, in which case the rate is null
+        // BECAUSE the denominator is zero — a recorded outcome, not a gap.
         const rate = summary.pass_rate;
-        const passRateText = isNum(rate) ? Math.round(rate * 100) + "%" : UNKNOWN;
-        let badgeClass = "grade-unknown";
+        const abstained = summary.abstained;
+        const graded = (isNum(summary.passed) && isNum(summary.failed))
+          ? summary.passed + summary.failed : null;
+        const nothingGraded = graded === 0;
+        const passRateText = isNum(rate) ? Math.round(rate * 100) + "%"
+          : (nothingGraded ? "no rate" : UNKNOWN);
+        let badgeClass = nothingGraded ? "grade-abstain" : "grade-unknown";
         if (isNum(rate)) {
           badgeClass = rate >= 0.8 ? "grade-pass" : rate >= 0.5 ? "grade-partial" : "grade-fail";
         }
@@ -1068,16 +1186,33 @@
         html += '<span class="grade-badge ' + badgeClass + '">' + escapeHtml(passRateText) + '</span>';
         html += '<span>'
           + orUnknown(summary.passed) + ' passed, '
-          + orUnknown(summary.failed) + ' failed of '
+          + orUnknown(summary.failed) + ' failed, '
+          + orUnknown(abstained) + ' abstained of '
           + orUnknown(summary.total) + '</span>';
+        html += abstainNoteHtml(abstained, summary.total);
         html += '</div>';
+
+        if (nothingGraded) {
+          html += '<p class="unknown">' + escapeHtml(
+            "Every check in this run abstained, so there is no pass rate to "
+            + "report. This is not a score of zero: nothing was ruled against "
+            + "the run. Each check below says which of the two reasons applied.")
+            + '</p>';
+        }
+
+        const legacyCount = countLegacy(expectations);
+        if (legacyCount > 0) {
+          html += '<div class="benchmark-warning">' + escapeHtml(
+            legacyCount + " of these checks carry a true/false `passed` and no "
+            + "`verdict`. " + LEGACY_VERDICT_WARNING) + '</div>';
+        }
 
         // Assertions list
         html += '<ul class="assertion-list">';
         for (const exp of expectations) {
-          const known = typeof exp.passed === "boolean";
-          const statusClass = known ? (exp.passed ? "pass" : "fail") : "";
-          const statusIcon = known ? (exp.passed ? "✓" : "✗") : UNKNOWN;
+          const verdict = verdictOf(exp);
+          const statusClass = verdict || "";
+          const statusIcon = verdict ? VERDICT_ICON[verdict] : UNKNOWN;
           html += '<li class="assertion-item">';
           html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
           // An expectation with no text used to render as a bare checkmark
@@ -1087,6 +1222,20 @@
           } else {
             html += '<span class="unknown">(this check has no text &mdash; the grader wrote no '
               + '&ldquo;text&rdquo; field for it)</span>';
+          }
+          if (verdict === "abstain") {
+            const reason = abstainReasonOf(exp);
+            html += '<span class="assertion-reason">' + escapeHtml(
+              reason ? "abstained: " + reason : "abstained: reason not recorded")
+              + '</span>';
+            html += '<div class="assertion-evidence">' + escapeHtml(
+              reason ? ABSTAIN_REASON_TEXT[reason]
+                     // Schema-invalid gradings never reach a benchmark, so
+                     // this branch means a hand-edited file. Say so rather
+                     // than presenting an untyped abstention as a normal one.
+                     : "No abstainReason was recorded. An untyped abstention "
+                       + "cannot be told from a judge that stopped ruling on "
+                       + "anything.") + '</div>';
           }
           if (exp.evidence) {
             html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
@@ -1108,7 +1257,8 @@
         html += '<div class="grades-summary">';
         html += '<span class="grade-badge grade-unknown">' + escapeHtml(UNKNOWN) + '</span>';
         html += '<span>' + escapeHtml(UNKNOWN) + ' passed, ' + escapeHtml(UNKNOWN)
-          + ' failed of ' + escapeHtml(UNKNOWN) + '</span>';
+          + ' failed, ' + escapeHtml(UNKNOWN) + ' abstained of '
+          + escapeHtml(UNKNOWN) + '</span>';
         html += '</div>';
         html += '<p class="unknown">' + escapeHtml(run.grading_note
           || "No grading.json was found for this run, so it was never graded. This is not a "
@@ -1570,7 +1720,12 @@
       let out = escapeHtml(text);
       const parts = [];
       if (isNum(stat.n)) parts.push("n=" + stat.n);
-      if (isNum(stat.missing) && stat.missing > 0) parts.push(stat.missing + " not recorded");
+      // For a pass rate, a missing value is not an unrecorded one: the run was
+      // graded, and every expectation in it abstained, so there is no rate.
+      // Filing that under "not recorded" says nobody looked (C16).
+      if (isNum(stat.missing) && stat.missing > 0) {
+        parts.push(stat.missing + (o.pct ? " with no rate" : " not recorded"));
+      }
       // n=1 already says why there is no spread; anything else needs saying.
       if (!isNum(stat.stddev) && stat.n !== 1) parts.push("spread " + UNKNOWN);
       if (parts.length) out += '<span class="metric-note">' + escapeHtml(parts.join(", ")) + "</span>";
@@ -1774,9 +1929,39 @@
         + "<span class='metric-note'>every graded check, pooled</span></td>";
       html += "<td>" + fmtMicro(pMicro) + "</td>";
       html += "<td>" + fmtMicro(bMicro) + "</td>";
-      html += "<td>" + ((pMicro && bMicro)
+      // A side with no graded check has no rate, so there is no difference to
+      // take. `0 - 0` would print `0 pp` and read as "no change".
+      html += "<td>" + ((pMicro && bMicro && isNum(pMicro.rate) && isNum(bMicro.rate))
         ? fmtDelta(pMicro.rate - bMicro.rate, { pct: true, lowerIsBetter: false })
         : UNKNOWN_HTML) + "</td></tr>";
+
+      // Abstentions get a row of their own, with no Change cell. Every other
+      // row here declares a direction; abstention has no honest one — a judge
+      // that abstains freely produces a benchmark measuring nothing while
+      // looking rigorous, and a judge that never abstains is the defect C16
+      // closed. Signing this number either way would be the page taking a side
+      // the data does not support.
+      // Shown whenever there are counts at all, including when the answer is
+      // zero. benchmark.md prints the section unconditionally for the same
+      // reason: an absent row cannot be told from "this page does not show
+      // abstentions", and the two renderings of one file must not disagree
+      // about what they disclose (contract C12's shape).
+      if (pMicro || bMicro) {
+        const fmtAbstain = (m) => {
+          if (!m) return UNKNOWN_HTML;
+          const pct = m.total > 0
+            ? " (" + ((m.abstained / m.total) * 100).toFixed(0) + "%)" : "";
+          return '<span class="benchmark-abstain">'
+            + escapeHtml(m.abstained + " of " + m.total + pct) + "</span>"
+            + '<span class="metric-note">'
+            + escapeHtml(m.graded + " ruled on") + "</span>";
+        };
+        html += "<tr><td><strong>Abstained</strong>"
+          + "<span class='metric-note'>declined, not failed &mdash; no direction is better</span></td>";
+        html += "<td>" + fmtAbstain(pMicro) + "</td>";
+        html += "<td>" + fmtAbstain(bMicro) + "</td>";
+        html += "<td>" + UNKNOWN_HTML + "</td></tr>";
+      }
 
       // The macro-average is still worth showing — it is what tells you
       // whether the runs agreed with each other — but only when it is labelled.
@@ -1816,10 +2001,15 @@
 
       html += "</tbody></table>";
       html += '<p class="benchmark-caption">'
-        + '<strong>Pass rate</strong> pools every check from every run: if 7 of 12 checks passed it reads 58%. '
+        + '<strong>Pass rate</strong> pools every check the judge ruled on, from every run: if 7 of 12 '
+        + 'ruled-on checks passed it reads 58%. '
         + '<strong>Pass rate per run</strong> averages the per-run scores instead, so it says how much the runs '
         + 'disagreed with each other. They differ whenever some tests have more checks than others. '
-        + escapeHtml(UNKNOWN) + ' means the value was never recorded &mdash; it is not a zero.</p>';
+        + '<strong>Abstained</strong> checks are the ones the judge declined to rule on; they are in neither '
+        + 'the numerator nor the denominator, so a high rate over a small ruled-on fraction is a weak result, '
+        + 'not a strong one. '
+        + escapeHtml(UNKNOWN) + ' means the value was never recorded &mdash; it is not a zero, and '
+        + '&ldquo;no rate&rdquo; means nothing was ruled on at all.</p>';
 
       // Per-eval breakdown (if runs data available)
       if (runs.length > 0) {
@@ -1848,7 +2038,7 @@
           html += "<h4 style='font-family: var(--font-sans); margin: 1rem 0 0.5rem; color: var(--text);'>"
             + escapeHtml(evalName) + "</h4>";
           html += '<table class="benchmark-table">';
-          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th><th>Abstained</th>";
           if (hasTime) html += "<th>Time (s)</th>";
           html += "</tr></thead>";
           html += "<tbody>";
@@ -1865,15 +2055,27 @@
             for (const run of configRuns) {
               const r = run.result || {};
               const rate = nullable(r.pass_rate);
-              const prClass = !isNum(rate) ? ""
+              const runGraded = (isNum(r.passed) && isNum(r.failed))
+                ? r.passed + r.failed : null;
+              const prClass = !isNum(rate)
+                ? (runGraded === 0 ? "benchmark-abstain" : "")
                 : rate >= 0.8 ? "benchmark-delta-better"
                 : rate < 0.5 ? "benchmark-delta-worse" : "";
               html += '<tr class="' + rowClass + '">';
               html += "<td>" + configLabel + "</td>";
               html += "<td>" + orUnknown(run.run_number) + "</td>";
+              // The denominator is the ruled-on count, not `total`. Printing
+              // "2/11" beside a rate computed over 2 checks said the run was
+              // graded 2 out of 11 and scored 100%, which is two different
+              // numbers wearing one slash.
               html += '<td class="' + prClass + '">'
-                + (isNum(rate) ? escapeHtml((rate * 100).toFixed(0) + "%") : UNKNOWN_HTML)
-                + " (" + orUnknown(r.passed) + "/" + orUnknown(r.total) + ")</td>";
+                + (isNum(rate) ? escapeHtml((rate * 100).toFixed(0) + "%")
+                   : runGraded === 0 ? escapeHtml("no rate") : UNKNOWN_HTML)
+                + " (" + orUnknown(r.passed) + "/"
+                + (runGraded === null ? UNKNOWN_HTML : escapeHtml(String(runGraded)))
+                + " ruled on)</td>";
+              html += '<td class="' + (isNum(r.abstained) && r.abstained > 0 ? "benchmark-abstain" : "") + '">'
+                + orUnknown(nullable(r.abstained)) + "/" + orUnknown(nullable(r.total)) + "</td>";
               if (hasTime) html += "<td>" + orUnknown(nullable(r.time_seconds), v => escapeHtml(v.toFixed(1))) + "</td>";
               html += "</tr>";
             }
@@ -1883,11 +2085,15 @@
             const avgPrClass = !rateStat ? ""
               : rateStat.mean >= 0.8 ? "benchmark-delta-better"
               : rateStat.mean < 0.5 ? "benchmark-delta-worse" : "";
+            const evalMicro = microAverage(configRuns.map(r => r.result || {}));
             html += '<tr class="benchmark-row-avg ' + rowClass + '">';
             html += "<td>" + configLabel + "</td>";
             html += "<td>Avg</td>";
             html += '<td class="' + avgPrClass + '">'
               + (rateStat ? escapeHtml((rateStat.mean * 100).toFixed(0) + "%") : UNKNOWN_HTML) + "</td>";
+            html += '<td class="' + (evalMicro && evalMicro.abstained > 0 ? "benchmark-abstain" : "") + '">'
+              + (evalMicro ? escapeHtml(evalMicro.abstained + "/" + evalMicro.total) : UNKNOWN_HTML)
+              + "</td>";
             if (hasTime) {
               const timeStat = stats(configRuns.map(r => nullable((r.result || {}).time_seconds)));
               html += "<td>" + (timeStat ? escapeHtml(timeStat.mean.toFixed(1)) : UNKNOWN_HTML) + "</td>";
@@ -1999,9 +2205,11 @@
 
       const order = [];
       const texts = {};   // key -> the one exact text this row is keyed by
-      const cells = {};   // key -> config -> [{passed, evidence, run_number}]
+      const cells = {};   // key -> config -> [{verdict, reason, evidence, run_number}]
       const sources = {}; // key -> Set of grading.json files it came from
       let untextedCount = 0;
+      let abstainCount = 0;
+      let legacyCount = 0;
 
       for (const config of configGroups) {
         for (let ri = 0; ri < byConfig[config].length; ri++) {
@@ -2027,8 +2235,12 @@
             }
             sources[key].add(source);
             if (!cells[key][config]) cells[key][config] = [];
+            const verdict = verdictOf(exp);
+            if (verdict === "abstain") abstainCount += 1;
+            if (isLegacyExpectation(exp)) legacyCount += 1;
             cells[key][config].push({
-              passed: typeof exp.passed === "boolean" ? exp.passed : null,
+              verdict: verdict,
+              reason: abstainReasonOf(exp),
               evidence: exp.evidence || "",
               run_number: run.run_number,
             });
@@ -2094,15 +2306,33 @@
             html += UNKNOWN_HTML + " ";
           } else {
             for (const entry of entries) {
-              const cls = entry.passed === null ? "unknown"
-                : entry.passed ? "benchmark-delta-better" : "benchmark-delta-worse";
-              const icon = entry.passed === null ? UNKNOWN : (entry.passed ? "✓" : "✗");
+              // Three verdicts, three marks. An abstention is drawn as neither
+              // ✓ nor ✗ because it is neither: the judge declined to rule.
+              const cls = entry.verdict === null ? "unknown"
+                : VERDICT_CELL_CLASS[entry.verdict];
+              const icon = entry.verdict === null ? UNKNOWN
+                : VERDICT_ICON[entry.verdict];
               // The title attribute carries grader-written evidence, which is
               // a quotation of the output being evaluated. escapeHtml covers
               // " and ' so it cannot close the attribute and add a handler.
-              const tip = "Run " + (entry.run_number == null ? "?" : entry.run_number)
+              let tip = "Run " + (entry.run_number == null ? "?" : entry.run_number)
                 + ": " + (entry.evidence || "(no evidence recorded)");
-              html += '<span class="' + cls + '" title="' + escapeHtml(tip) + '">' + icon + "</span> ";
+              if (entry.verdict === "abstain") {
+                // The typed reason is on the mark itself, not only in a
+                // paragraph under the table: this cell is what a reader
+                // compares across configurations, and an abstention without
+                // its reason is not comparable to anything.
+                tip = "Abstained ("
+                  + (entry.reason ? entry.reason + " — " + ABSTAIN_REASON_TEXT[entry.reason]
+                                  : "no abstainReason recorded")
+                  + "). " + tip;
+              }
+              html += '<span class="' + cls + '" title="' + escapeHtml(tip) + '">' + icon;
+              if (entry.verdict === "abstain") {
+                html += '<span class="assertion-reason">' + escapeHtml(
+                  entry.reason || "untyped") + '</span>';
+              }
+              html += "</span> ";
             }
           }
           html += "</td>";
@@ -2118,6 +2348,22 @@
         + 'would then show them agreeing when they disagree. '
         + escapeHtml(UNKNOWN) + ' means this configuration reported no result for that exact '
         + 'check.</p>';
+      if (abstainCount > 0) {
+        html += '<p class="benchmark-caption">'
+          + '<span class="benchmark-abstain">' + VERDICT_ICON.abstain + '</span> '
+          + escapeHtml(abstainCount + " check(s) were abstained on: the judge looked and declined "
+            + "to rule, tagged jurisdiction (outside what it could rule on) or evidence (in scope, "
+            + "but the run did not produce what a ruling needed). They are neither passes nor "
+            + "failures and are in neither side of the pass rate. A row of "
+            + VERDICT_ICON.abstain + " is not a row the skill failed — it is a check nobody could "
+            + "settle, and the tag says whether to fix the assertion or fix the run.")
+          + '</p>';
+      }
+      if (legacyCount > 0) {
+        html += '<div class="benchmark-warning">' + escapeHtml(
+          legacyCount + " check(s) here carry a true/false `passed` and no `verdict`. "
+          + LEGACY_VERDICT_WARNING) + '</div>';
+      }
       if (untextedCount > 0) {
         html += '<p class="benchmark-caption">' + escapeHtml(untextedCount === 1
           ? "1 check had no text and is shown on its own row: with nothing to match on, it "
@@ -2155,25 +2401,54 @@
       return runs.some(r => r.result && r.result[key] !== undefined);
     }
 
+    // Contract C16: the denominator is passed + failed, NOT total. Abstentions
+    // are checks the judge declined to rule on; counting them in the
+    // denominator states that the run failed them, which is precisely the
+    // conflation this contract removed. `total` is still tracked, because the
+    // gap between it and `graded` is what tells a reader how much of the eval
+    // set this rate actually covers.
     function microAverage(results) {
-      let passed = 0, total = 0, counted = 0, skipped = 0;
+      let passed = 0, graded = 0, abstained = 0, total = 0;
+      let counted = 0, skipped = 0;
       for (const r of results) {
-        if (isNum(r.passed) && isNum(r.total) && r.total > 0) {
+        if (isNum(r.passed) && isNum(r.failed)) {
           passed += r.passed;
-          total += r.total;
+          graded += r.passed + r.failed;
+          if (isNum(r.abstained)) abstained += r.abstained;
+          if (isNum(r.total)) total += r.total;
           counted += 1;
         } else {
           skipped += 1;
         }
       }
-      if (total === 0) return null;
-      return { rate: passed / total, passed, total, counted, skipped };
+      // No graded check anywhere is not 0% — there is no rate. A run whose
+      // expectations all abstained lands here, and rendering it as 0% would
+      // put a failing score on a run nothing was ruled against.
+      if (graded === 0) {
+        if (counted === 0) return null;
+        return { rate: null, passed, graded, abstained, total, counted, skipped };
+      }
+      return { rate: passed / graded, passed, graded, abstained, total,
+               counted, skipped };
     }
 
     function fmtMicro(micro) {
       if (!micro) return UNKNOWN_HTML;
-      let out = escapeHtml((micro.rate * 100).toFixed(0) + "%");
-      const parts = [micro.passed + "/" + micro.total + " checks"];
+      const parts = [];
+      let out;
+      if (micro.rate === null) {
+        out = '<span class="benchmark-abstain">' + escapeHtml("no rate") + "</span>";
+        parts.push("0 of " + micro.total + " checks were ruled on");
+      } else {
+        out = escapeHtml((micro.rate * 100).toFixed(0) + "%");
+        parts.push(micro.passed + "/" + micro.graded + " graded checks");
+      }
+      // Always beside the rate, never omitted when non-zero: 100% over two
+      // graded checks and nine abstentions is a different result from 100%
+      // over eleven, and the percentage alone renders them identically.
+      if (micro.abstained > 0) {
+        parts.push(micro.abstained + " abstained of " + micro.total);
+      }
       if (micro.skipped > 0) parts.push(micro.skipped + " run(s) not counted");
       out += '<span class="metric-note">' + escapeHtml(parts.join(", ")) + "</span>";
       return out;

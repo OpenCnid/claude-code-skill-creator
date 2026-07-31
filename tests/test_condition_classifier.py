@@ -379,7 +379,8 @@ class TestNoDoubleReporting(WorkspaceCase):
             grading.write_text(json.dumps(payload), encoding="utf-8")
             out = self.combined(self.script("preflight", root))
             self.assertEqual(
-                out.count("must be a number in [0.0, 1.0], got str ('85%')"), 1,
+                out.count(
+                    "must be a number in [0.0, 1.0] or null, got str ('85%')"), 1,
                 "one condition, one block:\n" + out)
             self.assertIn("C12:schema_invalid=error", out)
 

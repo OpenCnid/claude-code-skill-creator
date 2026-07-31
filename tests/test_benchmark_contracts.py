@@ -38,6 +38,7 @@ from scripts.aggregate_benchmark import (  # noqa: E402
 )
 from scripts.validate_grading import (  # noqa: E402
     classify_grading_path,
+    compute_pass_rate,
     validate_grading_file,
 )
 from tests.make_workspace_fixtures import build  # noqa: E402
@@ -323,8 +324,8 @@ class TestAbsentNotZero(WorkspaceCase):
         for key in ("output_chars", "tool_calls", "errors"):
             self.assertNotIn(key, result)
         self.assertEqual(sorted(result),
-                         ["failed", "pass_rate", "passed", "time_seconds",
-                          "tokens", "total"])
+                         ["abstained", "failed", "pass_rate", "passed",
+                          "time_seconds", "tokens", "total"])
 
     def test_tokens_come_from_timing_json(self):
         self.aggregate("canonical")
@@ -351,8 +352,8 @@ class TestAbsentNotZero(WorkspaceCase):
         self.aggregate("grader-timing-block")
         for run in self.benchmark("grader-timing-block")["runs"]:
             self.assertEqual(sorted(run["result"]),
-                             ["failed", "pass_rate", "passed", "time_seconds",
-                              "tokens", "total"])
+                             ["abstained", "failed", "pass_rate", "passed",
+                              "time_seconds", "tokens", "total"])
 
     def test_grader_written_timing_block_is_warned_about_not_failed(self):
         proc = self.script("validate_grading",
@@ -458,7 +459,7 @@ class TestSchemaEnforcement(WorkspaceCase):
         """research/11 F13.2 - the check that was missing entirely."""
         proc = self.script("validate_grading", self.iteration("summary-failed"))
         self.assertEqual(proc.returncode, 1, self.combined(proc))
-        self.assertIn("summary.failed is 0 but 2 expectations have passed=false",
+        self.assertIn('summary.failed is 0 but 2 expectation(s) have verdict="fail"',
                       self.combined(proc))
 
     def test_passed_plus_failed_must_equal_total(self):
@@ -678,15 +679,319 @@ class TestCliSurface(WorkspaceCase):
         self.assertEqual(sorted(data["run_summary"]["delta"]["pass_rate"]),
                          ["better", "formatted", "polarity", "value"])
         self.assertEqual(sorted(data["run_summary"]["with_skill"]),
-                         ["pass_rate", "runs", "time_seconds", "tokens"])
+                         ["abstention", "pass_rate", "runs", "time_seconds",
+                          "tokens"])
         self.assertEqual(sorted(data["run_summary"]["with_skill"]["pass_rate"]),
                          ["max", "mean", "min", "missing", "n", "stddev"])
+        self.assertEqual(sorted(data["run_summary"]["with_skill"]["abstention"]),
+                         ["abstained", "graded", "rate", "reasons", "runs",
+                          "runs_without_pass_rate", "total"])
 
     def test_missing_directory_exits_non_zero(self):
         proc = self.script("aggregate_benchmark", self.root / "nope",
                            "--skill-name", "demo")
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("not found", self.combined(proc))
+
+
+# --------------------------------------------------------------------------
+# Contract C16: verdicts are ternary
+# --------------------------------------------------------------------------
+
+class TestTernaryVerdicts(unittest.TestCase):
+    """The schema half: the enum, the conditional reason, and the arithmetic."""
+
+    def errors_for(self, payload) -> list:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "grading.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            errors, _warnings = validate_grading_file(path)
+        return errors
+
+    @staticmethod
+    def grading(expectations, **summary_overrides):
+        counts = {"pass": 0, "fail": 0, "abstain": 0}
+        for exp in expectations:
+            if exp.get("verdict") in counts:
+                counts[exp["verdict"]] += 1
+        graded = counts["pass"] + counts["fail"]
+        summary = {
+            "passed": counts["pass"], "failed": counts["fail"],
+            "abstained": counts["abstain"], "total": len(expectations),
+            "pass_rate": (counts["pass"] / graded) if graded else None,
+        }
+        summary.update(summary_overrides)
+        return {"expectations": expectations, "summary": summary}
+
+    P = {"text": "a", "verdict": "pass", "abstainReason": None, "evidence": "e"}
+    F = {"text": "b", "verdict": "fail", "abstainReason": None, "evidence": "e"}
+    A = {"text": "c", "verdict": "abstain", "abstainReason": "evidence",
+         "evidence": "e"}
+
+    # -- the enum ---------------------------------------------------------
+
+    def test_all_three_verdicts_are_accepted(self):
+        self.assertEqual(self.errors_for(self.grading([self.P, self.F, self.A])), [])
+
+    def test_a_fourth_verdict_is_rejected(self):
+        errors = self.errors_for(self.grading(
+            [dict(self.P, verdict="partial")]))
+        self.assertTrue(any("not one of" in e for e in errors), errors)
+
+    def test_a_boolean_verdict_is_rejected_and_named_as_the_old_shape(self):
+        errors = self.errors_for(self.grading([dict(self.P, verdict=True)]))
+        self.assertTrue(any("previous contract's shape" in e for e in errors),
+                        errors)
+
+    def test_a_stringified_boolean_is_pointed_at_the_right_member(self):
+        errors = self.errors_for(self.grading([dict(self.P, verdict="false")]))
+        joined = "\n".join(errors)
+        self.assertIn('did you mean "fail"', joined)
+        # And told that "could not tell" is no longer a fail. This sentence is
+        # the entire contract change; a message that only fixed the spelling
+        # would preserve the defect in the next run.
+        self.assertIn("that is \"abstain\", not \"fail\"", joined)
+
+    # -- abstainReason is conditional --------------------------------------
+
+    def test_an_abstention_without_a_reason_is_an_error(self):
+        errors = self.errors_for(self.grading(
+            [{"text": "c", "verdict": "abstain", "evidence": "e"}]))
+        self.assertTrue(any("required when the verdict is 'abstain'" in e
+                            for e in errors), errors)
+
+    def test_a_null_reason_on_an_abstention_is_an_error(self):
+        errors = self.errors_for(self.grading([dict(self.A, abstainReason=None)]))
+        self.assertTrue(any("abstainReason" in e for e in errors), errors)
+
+    def test_an_unrecognised_reason_is_an_error(self):
+        errors = self.errors_for(self.grading([dict(self.A, abstainReason="busy")]))
+        self.assertTrue(any("not one of 'jurisdiction', 'evidence'" in e
+                            for e in errors), errors)
+
+    def test_a_reason_beside_a_pass_or_a_fail_is_an_error(self):
+        for verdict in ("pass", "fail"):
+            with self.subTest(verdict=verdict):
+                errors = self.errors_for(self.grading(
+                    [{"text": "a", "verdict": verdict,
+                      "abstainReason": "evidence", "evidence": "e"}]))
+                self.assertTrue(
+                    any("required when and only when" in e for e in errors),
+                    errors)
+
+    def test_an_omitted_reason_on_a_pass_is_fine(self):
+        self.assertEqual(
+            self.errors_for(self.grading(
+                [{"text": "a", "verdict": "pass", "evidence": "e"}])), [])
+
+    def test_both_typed_reasons_are_accepted(self):
+        for reason in ("jurisdiction", "evidence"):
+            with self.subTest(reason=reason):
+                self.assertEqual(
+                    self.errors_for(self.grading(
+                        [dict(self.A, abstainReason=reason)])), [])
+
+    # -- the arithmetic ----------------------------------------------------
+
+    def test_passed_plus_failed_plus_abstained_must_equal_total(self):
+        errors = self.errors_for(self.grading([self.P, self.F, self.A], total=2))
+        self.assertTrue(any("but total is 2" in e for e in errors), errors)
+
+    def test_abstained_is_cross_checked_against_the_verdicts(self):
+        errors = self.errors_for(self.grading([self.P, self.A],
+                                              abstained=0, total=1))
+        self.assertTrue(
+            any('summary.abstained is 0 but 1 expectation(s) have verdict="abstain"'
+                in e for e in errors), errors)
+
+    def test_abstained_is_a_required_field(self):
+        payload = self.grading([self.P])
+        del payload["summary"]["abstained"]
+        errors = self.errors_for(payload)
+        self.assertTrue(any("missing required field 'abstained'" in e
+                            for e in errors), errors)
+
+    def test_the_denominator_excludes_abstentions(self):
+        # 1 pass, 1 fail, 9 abstentions is 50%, not 1/11.
+        payload = self.grading([self.P, self.F] + [dict(self.A)] * 9)
+        self.assertEqual(payload["summary"]["pass_rate"], 0.5)
+        self.assertEqual(self.errors_for(payload), [])
+
+    def test_using_passed_over_total_is_rejected_and_explained(self):
+        payload = self.grading([self.P, self.F, self.A], pass_rate=1 / 3)
+        errors = self.errors_for(payload)
+        joined = "\n".join(errors)
+        self.assertIn("this is passed/total", joined)
+        self.assertIn("abstentions leave the denominator", joined)
+
+    # -- the null rate -----------------------------------------------------
+
+    def test_an_all_abstain_run_must_report_a_null_rate(self):
+        self.assertEqual(self.errors_for(self.grading([self.A, self.A])), [])
+
+    def test_zero_point_zero_over_an_empty_denominator_is_rejected(self):
+        errors = self.errors_for(self.grading([self.A, self.A], pass_rate=0.0))
+        self.assertTrue(any("nothing was graded" in e for e in errors), errors)
+
+    def test_a_null_rate_over_a_nonempty_denominator_is_rejected(self):
+        errors = self.errors_for(self.grading([self.P, self.A], pass_rate=None))
+        self.assertTrue(any("pass_rate is null but 1 expectation(s) were graded"
+                            in e for e in errors), errors)
+
+    def test_compute_pass_rate_returns_none_not_zero(self):
+        """The one implementation every component shares."""
+        self.assertIsNone(compute_pass_rate(0, 0))
+        self.assertEqual(compute_pass_rate(1, 1), 0.5)
+        self.assertEqual(compute_pass_rate(2, 0), 1.0)
+
+    # -- the previous contract ---------------------------------------------
+
+    def test_a_boolean_passed_is_diagnosed_as_the_previous_contract(self):
+        errors = self.errors_for({
+            "expectations": [{"text": "a", "passed": True, "evidence": "e"}],
+            "summary": {"passed": 1, "failed": 0, "total": 1, "pass_rate": 1.0},
+        })
+        joined = "\n".join(errors)
+        # Not a type error. The reader's file is not malformed, it is last
+        # version's format, and what they need is the mapping.
+        self.assertIn("PREVIOUS grading contract, not a malformed file", joined)
+        self.assertIn('{"passed": true}', joined)
+        self.assertIn('"verdict": "pass"', joined)
+        self.assertIn('"abstainReason": "evidence"', joined)
+        self.assertIn('"abstainReason": "jurisdiction"', joined)
+        self.assertIn("add `abstained`", joined)
+
+    def test_the_migration_note_warns_against_mapping_every_false_to_fail(self):
+        errors = self.errors_for({
+            "expectations": [{"text": "a", "passed": False, "evidence": "e"}],
+            "summary": {"passed": 0, "failed": 1, "total": 1, "pass_rate": 0.0},
+        })
+        joined = "\n".join(errors)
+        self.assertIn("but only where the evidence actually showed the "
+                      "expectation false", joined)
+        self.assertIn("could not tell", joined)
+
+    def test_the_migration_note_is_printed_once_not_per_entry(self):
+        errors = self.errors_for({
+            "expectations": [{"text": "e%d" % i, "passed": True,
+                              "evidence": "e"} for i in range(40)],
+            "summary": {"passed": 40, "failed": 0, "total": 40,
+                        "pass_rate": 1.0},
+        })
+        joined = "\n".join(errors)
+        self.assertEqual(joined.count("PREVIOUS grading contract"), 1,
+                         "40 copies of the migration is not a diagnosis")
+
+    def test_keeping_passed_alongside_verdict_is_an_error(self):
+        errors = self.errors_for(self.grading([dict(self.P, passed=True)]))
+        self.assertTrue(any("REMOVED 'passed'" in e for e in errors), errors)
+
+    def test_a_verdict_alias_is_told_that_renaming_is_not_enough(self):
+        for alias in ("met", "result", "success"):
+            with self.subTest(alias=alias):
+                payload = self.grading(
+                    [{"text": "a", alias: True, "evidence": "e"}],
+                    passed=0, failed=0, abstained=0, total=1, pass_rate=None)
+                errors = self.errors_for(payload)
+                self.assertTrue(
+                    any("Renaming is not the whole fix" in e for e in errors),
+                    errors)
+
+
+class TestAbstentionReachesTheBenchmark(WorkspaceCase):
+    """Contract C16's consequence for the artifact that carries the number."""
+
+    def test_an_all_abstain_workspace_produces_null_everywhere_a_rate_appears(self):
+        proc = self.aggregate("all-abstained")
+        self.assertEqual(proc.returncode, 0, self.combined(proc))
+        data = self.benchmark("all-abstained")
+
+        for run in data["runs"]:
+            self.assertIsNone(run["result"]["pass_rate"],
+                              "a run nothing was ruled on has no pass rate")
+            self.assertEqual(run["result"]["passed"], 0)
+            self.assertEqual(run["result"]["failed"], 0)
+            self.assertGreater(run["result"]["abstained"], 0)
+
+        for config in ("with_skill", "without_skill"):
+            self.assertIsNone(data["run_summary"][config]["pass_rate"],
+                              "a configuration with no rate must be null, not 0")
+
+        delta = data["run_summary"]["delta"]["pass_rate"]
+        self.assertIsNone(delta["value"])
+        self.assertIsNone(delta["better"])
+        self.assertEqual(delta["formatted"], "—")
+
+    def test_the_rendered_benchmark_shows_no_zero_pass_rate(self):
+        """C15: assert on the rendered artifact, not on the JSON that fed it."""
+        self.aggregate("all-abstained")
+        md = self.benchmark_md("all-abstained")
+        summary = md[md.index("| Metric |"):md.index("## Abstentions")]
+        self.assertIn("—", summary)
+        self.assertNotIn("0%", summary,
+                         "a percentage over nothing reached the table:\n" + summary)
+
+    def test_abstention_counts_are_emitted_beside_every_rate(self):
+        self.aggregate("all-abstained")
+        data = self.benchmark("all-abstained")
+        block = data["run_summary"]["with_skill"]["abstention"]
+        self.assertEqual(block["abstained"], 5)
+        self.assertEqual(block["graded"], 0)
+        self.assertEqual(block["total"], 5)
+        self.assertEqual(block["rate"], 1.0)
+        # Two reasons, and they are counted separately: one says fix the eval
+        # set, the other says fix the run.
+        self.assertEqual(block["reasons"]["jurisdiction"], 2)
+        self.assertEqual(block["reasons"]["evidence"], 3)
+        self.assertEqual(block["reasons"]["untyped"], 0)
+        self.assertEqual(block["runs_without_pass_rate"], 2)
+
+    def test_a_thin_pass_rate_carries_its_abstentions_into_the_markdown(self):
+        """100% over 2 ruled-on checks must not read like 100% over 11."""
+        self.aggregate("partly-abstained")
+        md = self.benchmark_md("partly-abstained")
+        self.assertIn("## Abstentions", md)
+        self.assertIn("9 of 11 checks (82%); 2 graded", md)
+        self.assertIn("0 of 11 checks (0%); 11 graded", md)
+        # And per eval, beside the rate itself.
+        self.assertIn("| 100% | 9/11 | 100% | 0/11 |", md)
+
+    def test_abstention_is_not_a_delta_metric(self):
+        """It has no honest polarity, so it declares none."""
+        self.assertNotIn("abstention", METRIC_POLARITY)
+        self.assertNotIn("abstained", METRIC_POLARITY)
+        self.aggregate("partly-abstained")
+        delta = self.benchmark("partly-abstained")["run_summary"]["delta"]
+        self.assertNotIn("abstention", delta)
+
+    def test_the_markdown_states_the_two_sided_risk(self):
+        self.aggregate("partly-abstained")
+        md = self.benchmark_md("partly-abstained")
+        self.assertIn("no delta on this row and no polarity", md)
+        self.assertIn("abstains freely", md)
+        self.assertIn("never abstains", md)
+
+    def test_an_eval_both_sides_ran_with_no_rate_is_not_called_unpaired(self):
+        """`no` would say the baseline never attempted it. It did."""
+        self.aggregate("all-abstained")
+        md = self.benchmark_md("all-abstained")
+        rows = [l for l in md.splitlines() if l.startswith("| 0 |")]
+        self.assertTrue(rows, md)
+        self.assertIn("no rate", rows[0])
+
+    def test_the_console_summary_never_says_zero_percent(self):
+        proc = self.aggregate("all-abstained")
+        out = self.combined(proc)
+        self.assertIn("no pass rate", out)
+        self.assertIn("This is not 0%", out)
+        self.assertNotIn("0.0% pass rate", out)
+
+    def test_a_previous_contract_workspace_is_excluded_with_the_migration(self):
+        proc = self.aggregate("previous-contract")
+        # Every grading failed schema validation, so nothing survives.
+        self.assertNotEqual(proc.returncode, 0, self.combined(proc))
+        out = self.combined(proc)
+        self.assertIn("PREVIOUS grading contract", out)
 
 
 if __name__ == "__main__":

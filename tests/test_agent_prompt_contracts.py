@@ -209,16 +209,27 @@ class GraderRequiredBlocksTest(unittest.TestCase):
     def _concrete(self):
         """The grader block with its slots replaced by conforming values.
 
-        The prompt's example is a frame - `"passed": "{Boolean...}"` is a string
-        - so it cannot be validated as-is. Only the values are substituted; every
-        field name and every nesting level comes from the prompt itself.
+        The prompt's example is a frame - `"abstainReason": "{...}"` is a slot
+        string - so it cannot be validated as-is. Only the values are
+        substituted; every field name and every nesting level comes from the
+        prompt itself.
+
+        All three verdicts appear, because a substitution that only ever used
+        `pass` and `fail` would keep passing if the prompt lost `abstain`
+        entirely - which is the field contract C16 exists to add.
         """
         block = json.loads(json.dumps(self.full))
         block["expectations"] = [
-            {"text": "first", "passed": True, "evidence": "seen"},
-            {"text": "second", "passed": False, "evidence": "absent"},
+            {"text": "first", "verdict": "pass", "abstainReason": None,
+             "evidence": "seen"},
+            {"text": "second", "verdict": "fail", "abstainReason": None,
+             "evidence": "contradicted by row 3"},
+            {"text": "third", "verdict": "abstain",
+             "abstainReason": "evidence",
+             "evidence": "no transcript was supplied"},
         ]
-        block["summary"] = {"passed": 1, "failed": 1, "total": 2, "pass_rate": 0.5}
+        block["summary"] = {"passed": 1, "failed": 1, "abstained": 1,
+                            "total": 3, "pass_rate": 0.5}
         for claim in block.get("claims", []):
             claim["verified"] = True
             claim["type"] = "factual"
@@ -255,6 +266,159 @@ class GraderRequiredBlocksTest(unittest.TestCase):
                     f"validate_grading rejects a grading.json with no "
                     f"'{field}', but grader.md says it may be omitted",
                 )
+
+
+# --------------------------------------------------------------------------
+# 3a. grader.md says the three things contract C16 requires it to say
+# --------------------------------------------------------------------------
+
+class GraderTernaryVocabularyTest(unittest.TestCase):
+    """Prose, not shape - but three specific sentences whose absence is a bug.
+
+    Everything else here compares key trees, deliberately, so a prompt is free
+    to reword. These three are exceptions because each one is a rule the model
+    follows rather than a field it emits, and losing any of them puts the
+    previous contract's behaviour back into a file whose JSON block still looks
+    correct.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = (AGENTS / "grader.md").read_text(encoding="utf-8")
+        # Line-wrapped prose: a sentence that has to survive is checked against
+        # the unwrapped text, so reflowing the paragraph is not a failure.
+        cls.flat = re.sub(r"\s+", " ", cls.text)
+
+    def assertSaid(self, phrase, note=""):
+        self.assertIn(re.sub(r"\s+", " ", phrase), self.flat,
+                      "agents/grader.md no longer says: " + phrase
+                      + (" -- " + note if note else ""))
+
+    def test_the_retired_rule_is_gone(self):
+        """"when you genuinely cannot tell, it fails" is the defect itself."""
+        self.assertNotIn(
+            "the burden of proof sits on the expectation: when you genuinely",
+            self.flat,
+            "the retired instruction is still stated as the rule")
+        # It may be quoted while being retired; it may not be an instruction.
+        if "genuinely cannot tell, it fails" in self.flat:
+            self.assertSaid("That rule is **retired**",
+                            "the old rule is quoted without being retired")
+
+    def test_all_three_verdicts_and_both_reasons_are_named(self):
+        for token in ('"pass"', '"fail"', '"abstain"',
+                      '"jurisdiction"', '"evidence"'):
+            self.assertIn(token, self.flat, "grader.md never names " + token)
+
+    def test_the_null_rate_is_stated(self):
+        self.assertSaid("passed / (passed + failed)")
+        self.assertSaid("never `0.0` for a run where nothing was graded")
+        self.assertSaid('write `"pass_rate": null`')
+
+    def test_the_two_sided_risk_is_stated(self):
+        """Guidance that pushes either way produces a judge that lies."""
+        lowered = re.sub(r"\s+", " ", self.text.lower())
+        self.assertIn("abstain too freely", lowered)
+        self.assertIn("abstain too rarely", lowered)
+        self.assertIn("no setting of this dial that is safe", lowered)
+
+    def test_the_single_judge_path_is_positioned_against_the_panel(self):
+        self.assertSaid("single-judge path")
+        self.assertSaid("composed panel")
+        self.assertSaid("Use this single-judge path when")
+        self.assertSaid("Use the composed panel when")
+
+    def test_the_kept_rules_are_still_there(self):
+        """C16 changed the verdict vocabulary and nothing else in this file."""
+        self.assertSaid(
+            "A path you were not given names a file that does not exist")
+        self.assertSaid(
+            "Evidence that cannot be rechecked by someone else is not evidence")
+        for parameter in ("expectations", "eval_prompt", "outputs_dir",
+                          "grading_path", "transcript_path", "user_notes_path"):
+            self.assertIn("`" + parameter + "`", self.flat,
+                          "the inputs table lost " + parameter)
+
+    def test_a_missing_transcript_is_no_longer_a_fail(self):
+        self.assertSaid("is **not a fail**")
+        self.assertSaid('`abstain` with `abstainReason: "evidence"`')
+
+    def test_the_prompt_does_not_tell_the_grader_to_write_passed(self):
+        block = find_block(json_blocks(AGENTS / "grader.md"),
+                           "expectations", "summary")
+        self.assertNotIn("passed", block["expectations"][0],
+                         "the retired boolean is still in the output frame")
+        self.assertIn("verdict", block["expectations"][0])
+        self.assertIn("abstainReason", block["expectations"][0])
+
+
+# --------------------------------------------------------------------------
+# 3b. Every grading.json example in schemas.md validates as written
+# --------------------------------------------------------------------------
+
+class SchemaExamplesValidateTest(unittest.TestCase):
+    """The doc's `grading.json` blocks are run through the real validator.
+
+    §6 states that its integers, its enum members and `pass_rate` are literal
+    *because the validator checks the arithmetic between them*. That sentence
+    is only true if someone checks - and the change to ternary verdicts is
+    exactly the kind of edit that leaves a documented example one contract
+    behind while every prose paragraph around it is updated.
+
+    Slot strings are left alone: only `text` and `evidence` carry them, and
+    the validator asks for a non-empty string in both.
+    """
+
+    def _grading_blocks(self):
+        """Every block in schemas.md that is a grading.json (not a benchmark)."""
+        return [b for b in json_blocks(SCHEMAS_MD)
+                if isinstance(b, dict) and "expectations" in b and "summary" in b
+                and "runs" not in b]
+
+    def _errors_for(self, payload):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "grading.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            errors, _warnings = validate_grading_file(path)
+        return errors
+
+    def test_at_least_one_grading_example_is_present(self):
+        self.assertGreaterEqual(
+            len(self._grading_blocks()), 2,
+            "references/schemas.md should carry both the required-shape and "
+            "the optional-blocks grading.json examples")
+
+    def test_every_documented_grading_example_validates(self):
+        for idx, block in enumerate(self._grading_blocks(), start=1):
+            with self.subTest(example=idx):
+                self.assertEqual(
+                    self._errors_for(block), [],
+                    f"references/schemas.md grading.json example {idx} does "
+                    f"not validate against scripts.validate_grading")
+
+    def test_the_documented_examples_exercise_all_three_verdicts(self):
+        """A doc that only shows pass and fail documents the old contract."""
+        verdicts = {
+            exp.get("verdict")
+            for block in self._grading_blocks()
+            for exp in block.get("expectations", [])
+            if isinstance(exp, dict)
+        }
+        self.assertEqual(
+            verdicts, {"pass", "fail", "abstain"},
+            "references/schemas.md's grading.json examples must show all three "
+            "verdicts; abstain is the one a reader will not invent for "
+            "themselves")
+
+    def test_the_documented_benchmark_example_matches_a_real_aggregation(self):
+        """§7 claims to be the aggregator's own output. Check the key tree."""
+        documented = find_block(json_blocks(SCHEMAS_MD), "run_summary", "runs")
+        self.assertIsNotNone(documented)
+        summary = documented["run_summary"]["with_skill"]
+        self.assertIn(
+            "abstention", summary,
+            "references/schemas.md's benchmark example has no `abstention` "
+            "block; contract C16 requires the counts beside every rate")
 
 
 # --------------------------------------------------------------------------

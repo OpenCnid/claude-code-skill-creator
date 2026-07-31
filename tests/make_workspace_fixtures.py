@@ -57,6 +57,15 @@ flat-and-run        research/V1 N4 / R8 - a configuration holding both a flat
                     discarded and the validator claimed it was normalized.
 duplicate-keys      research/V1 N5 / R9 - two eval directories declaring
                     eval_id 0, and `run-1` beside `run-01`.
+all-abstained       contract C16 - every expectation in every run abstained,
+                    so there is no pass rate anywhere. A `0` in any cell of
+                    any artifact is the defect.
+partly-abstained    contract C16 - 100% over 2 ruled-on checks and 9
+                    abstentions beside 100% over 11, which must not render
+                    alike.
+previous-contract   contract C16 - grading.json in the retired boolean shape,
+                    which must be diagnosed as the previous contract with a
+                    migration rather than as a type error.
 """
 
 from __future__ import annotations
@@ -78,28 +87,65 @@ def write_json(path: Path, payload) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def grading(passed: int, failed: int, *, pass_rate=None, summary_failed=None,
-            texts=None, timing_block=False, execution_metrics=None) -> dict:
-    """A contract-C3 grading.json, with hooks for building malformed ones."""
-    total = passed + failed
+def grading(passed: int, failed: int, abstained: int = 0, *, pass_rate=None,
+            summary_failed=None, texts=None, timing_block=False,
+            execution_metrics=None, abstain_reasons=None,
+            legacy_boolean=False) -> dict:
+    """A contract-C3/C16 grading.json, with hooks for building malformed ones.
+
+    Verdicts are ternary: `passed` entries come first, then `failed`, then
+    `abstained`. `pass_rate` is `passed / (passed + failed)` and is **None**
+    when nothing was graded - abstentions leave the denominator, and a rate
+    over nothing is null rather than zero.
+
+    `legacy_boolean=True` emits the PREVIOUS contract's shape - a boolean
+    `passed` per expectation and no `abstained` in the summary - for the
+    fixtures that exist to prove the validator names it as such.
+    """
+    total = passed + failed + abstained
     labels = texts or [f"expectation {i + 1}" for i in range(total)]
+    reasons = abstain_reasons or ["evidence"] * abstained
     expectations = []
     for i in range(total):
-        is_pass = i < passed
-        expectations.append({
-            "text": labels[i],
-            "passed": is_pass,
-            "evidence": ("output matched the expectation"
-                         if is_pass else "output did not match"),
-        })
+        if i < passed:
+            verdict, reason = "pass", None
+            evidence = "output matched the expectation"
+        elif i < passed + failed:
+            verdict, reason = "fail", None
+            evidence = "output did not match"
+        else:
+            verdict = "abstain"
+            reason = reasons[i - passed - failed]
+            evidence = ("nothing in outputs/ could settle this; no transcript "
+                        "was supplied")
+        if legacy_boolean:
+            expectations.append({
+                "text": labels[i],
+                "passed": verdict == "pass",
+                "evidence": evidence,
+            })
+        else:
+            expectations.append({
+                "text": labels[i],
+                "verdict": verdict,
+                "abstainReason": reason,
+                "evidence": evidence,
+            })
+
+    graded = passed + failed
+    default_rate = (passed / graded) if graded else None
+    summary = {
+        "passed": passed,
+        "failed": failed if summary_failed is None else summary_failed,
+        "abstained": abstained,
+        "total": total,
+        "pass_rate": default_rate if pass_rate is None else pass_rate,
+    }
+    if legacy_boolean:
+        del summary["abstained"]
     payload = {
         "expectations": expectations,
-        "summary": {
-            "passed": passed,
-            "failed": failed if summary_failed is None else summary_failed,
-            "total": total,
-            "pass_rate": (passed / total) if pass_rate is None else pass_rate,
-        },
+        "summary": summary,
     }
     if timing_block:
         payload["timing"] = {"total_duration_seconds": 191.0}
@@ -453,6 +499,81 @@ def _unreachable_grading(root: Path) -> None:
     run(ev / "without_skill" / "run-1", grading(1, 3), timing(40000, 30.0))
 
 
+def _all_abstained(root: Path) -> None:
+    """Contract C16 - every expectation in every run abstained.
+
+    The end-to-end repro for the rule that a rate over nothing is null and not
+    zero. Both configurations ran, both were graded, and neither judge could
+    rule on anything: eval-0 for jurisdiction, eval-1 for evidence. Every
+    pass-rate cell in every artifact must read as absent. A `0` anywhere -
+    `summary.pass_rate`, `runs[].result.pass_rate`, `run_summary.<config>`,
+    the delta, the rendered table, the viewer - is the defect, and it is
+    exactly the shape that reads as "this skill failed everything" to anyone
+    skimming.
+
+    Runs and timings are present and valid, so nothing else can be blamed for
+    the absence.
+    """
+    it = root / "all-abstained" / "iteration-1"
+
+    ev0 = it / "eval-0-outside-jurisdiction"
+    write_json(ev0 / "eval_metadata.json",
+               metadata(0, "outside-jurisdiction", "produce the report",
+                        assertions=["expectation 1", "expectation 2"]))
+    ev1 = it / "eval-1-evidence-never-captured"
+    write_json(ev1 / "eval_metadata.json",
+               metadata(1, "evidence-never-captured", "produce the report",
+                        assertions=["expectation 1", "expectation 2",
+                                    "expectation 3"]))
+
+    for config, tokens, seconds in (("with_skill", 80000, 60.0),
+                                    ("without_skill", 40000, 30.0)):
+        run(ev0 / config / "run-1",
+            grading(0, 0, 2, abstain_reasons=["jurisdiction", "jurisdiction"]),
+            timing(tokens, seconds))
+        run(ev1 / config / "run-1",
+            grading(0, 0, 3,
+                    abstain_reasons=["evidence", "evidence", "evidence"]),
+            timing(tokens, seconds))
+
+
+def _partly_abstained(root: Path) -> None:
+    """Contract C16 - a high rate over a small ruled-on fraction.
+
+    `with_skill` passes both checks it was ruled on and abstains on nine, so
+    its pass rate is 100%. `without_skill` is ruled on all eleven and passes
+    eleven, so its pass rate is also 100%. The two are not the same result and
+    no artifact may render them alike - which is only possible if the
+    abstention count travels beside the rate.
+    """
+    it = root / "partly-abstained" / "iteration-1"
+    ev = it / "eval-0-thin-evidence"
+    write_json(ev / "eval_metadata.json",
+               metadata(0, "thin-evidence", "produce the report",
+                        assertions=[f"expectation {i + 1}" for i in range(11)]))
+    run(ev / "with_skill" / "run-1",
+        grading(2, 0, 9, abstain_reasons=["evidence"] * 9),
+        timing(80000, 60.0))
+    run(ev / "without_skill" / "run-1", grading(11, 0), timing(40000, 30.0))
+
+
+def _previous_contract(root: Path) -> None:
+    """The PREVIOUS grading contract - a boolean `passed`, no `abstained`.
+
+    Not malformed, just last version's format. Contract C16 requires that this
+    be diagnosed by name with the migration spelled out, rather than reported
+    as a generic type error that says nothing about what changed.
+    """
+    it = root / "previous-contract" / "iteration-1"
+    ev = it / "eval-0-boolean-verdicts"
+    write_json(ev / "eval_metadata.json",
+               metadata(0, "boolean-verdicts", "produce the report"))
+    run(ev / "with_skill" / "run-1", grading(4, 0, legacy_boolean=True),
+        timing(80000, 60.0))
+    run(ev / "without_skill" / "run-1", grading(1, 3, legacy_boolean=True),
+        timing(40000, 30.0))
+
+
 BUILDERS = (
     _repro_flat,
     _canonical,
@@ -472,6 +593,9 @@ BUILDERS = (
     _skill_config,
     _flat_and_run,
     _duplicate_keys,
+    _all_abstained,
+    _partly_abstained,
+    _previous_contract,
 )
 
 

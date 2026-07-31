@@ -28,6 +28,7 @@
         "pass_rate": 0.5,
         "passed": 5,
         "failed": 5,
+        "abstained": 0,
         "total": 10,
         "time_seconds": 30.0,
         "tokens": 1200
@@ -35,51 +36,61 @@
       "expectations": [
         {
           "text": "Output is a CSV file",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "The grader quoted the output: x\" onmouseover=\"window.__ATTR_FIRED=1\" data-z=\""
         },
         {
           "text": "Header row present",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "Saw a literal </script> in the emitted markup, which is fine here."
         },
         {
           "text": "Totals row is last",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "Итог: 42 — 日本語テキスト — café naïve"
         },
         {
           "text": "Currency is formatted",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "row 3 checked"
         },
         {
           "text": "No blank rows",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "row 4 checked"
         },
         {
           "text": "Dates are ISO-8601",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 5 checked"
         },
         {
           "text": "Encoding is UTF-8",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 6 checked"
         },
         {
           "text": "File is under 1 MB",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 7 checked"
         },
         {
           "text": "Column order matches the brief",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 8 checked"
         },
         {
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "no text field was written for this check"
         }
       ],
@@ -94,6 +105,7 @@
         "pass_rate": 0.2,
         "passed": 2,
         "failed": 8,
+        "abstained": 0,
         "total": 10,
         "time_seconds": 45.0,
         "tokens": 900
@@ -101,52 +113,62 @@
       "expectations": [
         {
           "text": "The output is a CSV file",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "row 0 checked"
         },
         {
           "text": "Header row present",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "row 1 checked"
         },
         {
           "text": "Totals row is last",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 2 checked"
         },
         {
           "text": "Currency is formatted",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 3 checked"
         },
         {
           "text": "No blank rows",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 4 checked"
         },
         {
           "text": "Dates are ISO-8601",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 5 checked"
         },
         {
           "text": "Encoding is UTF-8",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 6 checked"
         },
         {
           "text": "File is under 1 MB",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 7 checked"
         },
         {
           "text": "Column order matches the brief",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 8 checked"
         },
         {
           "text": "Footer note is present",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 9 checked"
         }
       ],
@@ -161,20 +183,29 @@
         "pass_rate": 1.0,
         "passed": 2,
         "failed": 0,
-        "total": 2,
+        "abstained": 1,
+        "total": 3,
         "time_seconds": null,
         "tokens": null
       },
       "expectations": [
         {
           "text": "Mentions the total",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "row 0 checked"
         },
         {
           "text": "Two sentences or fewer",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "row 1 checked"
+        },
+        {
+          "text": "Follows the documented ordering of steps",
+          "verdict": "abstain",
+          "abstainReason": "jurisdiction",
+          "evidence": "row 2 checked"
         }
       ],
       "notes": []
@@ -188,20 +219,29 @@
         "pass_rate": 0.0,
         "passed": 0,
         "failed": 2,
-        "total": 2,
+        "abstained": 1,
+        "total": 3,
         "time_seconds": 45.0,
         "tokens": 900
       },
       "expectations": [
         {
           "text": "Mentions the total",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 0 checked"
         },
         {
           "text": "Two sentences or fewer",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "row 1 checked"
+        },
+        {
+          "text": "Follows the documented ordering of steps",
+          "verdict": "abstain",
+          "abstainReason": "evidence",
+          "evidence": "row 2 checked"
         }
       ],
       "notes": []
@@ -233,6 +273,19 @@
         "n": 1,
         "missing": 1
       },
+      "abstention": {
+        "abstained": 1,
+        "graded": 12,
+        "total": 13,
+        "rate": 0.0769,
+        "reasons": {
+          "jurisdiction": 1,
+          "evidence": 0,
+          "untyped": 0
+        },
+        "runs": 2,
+        "runs_without_pass_rate": 0
+      },
       "runs": 2
     },
     "old_skill": {
@@ -259,6 +312,19 @@
         "max": 900,
         "n": 2,
         "missing": 0
+      },
+      "abstention": {
+        "abstained": 1,
+        "graded": 12,
+        "total": 13,
+        "rate": 0.0769,
+        "reasons": {
+          "jurisdiction": 0,
+          "evidence": 1,
+          "untyped": 0
+        },
+        "runs": 2,
+        "runs_without_pass_rate": 0
       },
       "runs": 2
     },
@@ -288,7 +354,7 @@
       "path": "iteration-1/eval-2-dropped/with_skill/run-1/grading.json",
       "reason": "failed grading.json schema validation <svg onload=\"window.__X_FIRED_EXCL=1\"></svg>",
       "errors": [
-        "expectations[0]: has 'met' but the viewer reads 'passed' - rename it"
+        "expectations[0]: has 'met' where the contract has 'verdict'"
       ]
     }
   ],

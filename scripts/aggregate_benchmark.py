@@ -65,6 +65,23 @@ What this script will NOT do (contract C4 - absent data is absent, never zero):
     the pooled means reported `+0.50 better` - a favourable number whose entire
     magnitude came from an eval the baseline never attempted, over data whose
     one genuine comparison showed no difference at all.
+  * A run whose expectations **all abstained** has `pass_rate: null` (contract
+    C16), which `calculate_stats` drops rather than averages. It is not a 0%
+    run, it did not happen to score badly, and it contributes nothing to a
+    delta. Where that is true of every run of a configuration, that
+    configuration's `pass_rate` block is `null` outright and no delta is
+    reported - the same treatment a missing `timing.json` gets, for the same
+    reason.
+
+Abstention is reported next to every rate and is **not** a delta metric. Each
+delta declares a polarity (contract C5) and abstention has no honest one: a
+judge that abstains freely produces a benchmark that measures nothing while
+looking rigorous, and a judge that never abstains is the defect C16 exists to
+close. Signing that number in either direction would be this file taking a side
+on a question the data does not answer. So `run_summary.<config>.abstention`
+carries the counts and the rate, `benchmark.md` prints them beside the pass
+rate and per eval, and the judgment is left to the reader - who now has the
+number needed to notice a judge that has drifted.
 
 `runs[].result` deliberately carries no `output_chars`, `tool_calls`, or
 `errors`. Their only source was `execution_metrics`, fed by a `metrics.json`
@@ -92,6 +109,9 @@ Shape of `run_summary`:
         "pass_rate":    {"mean","stddev","min","max","n","missing"} | null,
         "time_seconds": ... | null,
         "tokens":       ... | null,
+        "abstention":   {"abstained","graded","total","rate",
+                         "reasons":{"jurisdiction","evidence","untyped"},
+                         "runs","runs_without_pass_rate"} | null,
         "runs": <int>
       },
       "delta": {
@@ -127,9 +147,11 @@ from scripts.utils import (
 )
 from scripts.validate_grading import (
     ABSENT,
+    ABSTAIN_REASONS,
     BASELINE_ROLE_CONFIGS,
     CANONICAL_LAYOUT,
     NON_CONFIG_DIRS,
+    PASS_RATE_RULE,
     PRIMARY_ROLE_CONFIGS,
     RUN_DIR_RE,
     eval_id_from_dir_name,
@@ -194,6 +216,65 @@ def calculate_stats(values: list) -> dict | None:
         "max": round(max(measured), 4),
         "n": n,
         "missing": missing,
+    }
+
+
+def abstention_stats(runs: list) -> dict | None:
+    """Pooled abstention counts over a set of runs (contract C16).
+
+    Counts, not a mean of rates: `rate` is `abstained / total` over every
+    expectation in every run, so a run with twenty expectations weighs twenty
+    times a run with one. That is the right weighting for the question this
+    number answers - "how much of what this judge was asked did it decline to
+    rule on" - and it is deliberately a different weighting from `pass_rate`'s
+    macro average over runs.
+
+    `reasons` splits the abstentions by their typed reason, because the two
+    mean different things. A wall of `jurisdiction` says the expectation set is
+    asking this seat questions it cannot answer; a wall of `evidence` says the
+    runs are not producing what a ruling needs. `untyped` counts abstentions
+    with no valid reason - schema-invalid gradings never reach here, so it
+    stays 0 in practice and is emitted rather than assumed.
+
+    Returns None when no run carried usable counts, which renders as unknown
+    rather than as "nobody abstained".
+    """
+    abstained = graded = total = 0
+    reasons = {reason: 0 for reason in ABSTAIN_REASONS}
+    reasons["untyped"] = 0
+    counted = 0
+    without_rate = 0
+
+    for run in runs:
+        values = (run.get("passed"), run.get("failed"),
+                  run.get("abstained"), run.get("total"))
+        if run.get("pass_rate") is None:
+            without_rate += 1
+        if any(isinstance(v, bool) or not isinstance(v, int) for v in values):
+            continue
+        passed, failed, abstentions, run_total = values
+        abstained += abstentions
+        graded += passed + failed
+        total += run_total
+        counted += 1
+        for exp in run.get("expectations") or []:
+            if not isinstance(exp, dict) or exp.get("verdict") != "abstain":
+                continue
+            reason = exp.get("abstainReason")
+            reasons[reason if reason in reasons else "untyped"] += 1
+
+    if counted == 0:
+        return None
+
+    return {
+        "abstained": abstained,
+        "graded": graded,
+        "total": total,
+        # Contract C4 again: no expectations at all is unknown, not 0%.
+        "rate": round(abstained / total, 4) if total else None,
+        "reasons": reasons,
+        "runs": counted,
+        "runs_without_pass_rate": without_rate,
     }
 
 
@@ -577,9 +658,15 @@ def discover_runs(benchmark_dir: Path) -> dict:
                     "eval_name": eval_name,
                     "run_number": run_number,
                     "run_dir": str(run_dir),
+                    # `pass_rate` is null for a run whose expectations all
+                    # abstained (C16). It stays null all the way through:
+                    # calculate_stats drops it, no delta uses it, and the
+                    # rendered cell is an em dash. The 0.0 the previous
+                    # contract produced here was a measurement of nothing.
                     "pass_rate": summary.get("pass_rate"),
                     "passed": summary.get("passed"),
                     "failed": summary.get("failed"),
+                    "abstained": summary.get("abstained"),
                     "total": summary.get("total"),
                     "time_seconds": time_seconds,
                     "tokens": tokens,
@@ -835,6 +922,7 @@ def aggregate_results(results: dict, primary: str | None, baseline: str | None,
                 "pass_rate": None,
                 "time_seconds": None,
                 "tokens": None,
+                "abstention": None,
                 "runs": 0,
             }
             continue
@@ -843,6 +931,11 @@ def aggregate_results(results: dict, primary: str | None, baseline: str | None,
             "pass_rate": calculate_stats([r["pass_rate"] for r in runs]),
             "time_seconds": calculate_stats([r["time_seconds"] for r in runs]),
             "tokens": calculate_stats([r["tokens"] for r in runs]),
+            # Beside every rate, never instead of one. A 100% pass rate over
+            # two graded expectations and nine abstentions is a different
+            # result from 100% over eleven (C16), and `pass_rate` alone cannot
+            # tell them apart.
+            "abstention": abstention_stats(runs),
             "runs": len(runs),
         }
 
@@ -964,6 +1057,7 @@ def build_benchmark(discovery: dict, primary: str | None, baseline: str | None,
                     "pass_rate": result["pass_rate"],
                     "passed": result["passed"],
                     "failed": result["failed"],
+                    "abstained": result["abstained"],
                     "total": result["total"],
                     "time_seconds": result["time_seconds"],
                     "tokens": result["tokens"],
@@ -1018,6 +1112,27 @@ def _label(config: str | None) -> str:
     return config.replace("_", " ").title() if config else ABSENT
 
 
+def _fmt_abstention(block, *, short: bool = False) -> str:
+    """Render one configuration's pooled abstention counts."""
+    if not block:
+        return ABSENT
+    rate = (f"{block['rate'] * 100:.0f}%" if block["rate"] is not None
+            else ABSENT)
+    if short:
+        return f"{block['abstained']}/{block['total']} ({rate})"
+    reasons = block.get("reasons") or {}
+    detail = ", ".join(f"{count} {name}" for name, count in reasons.items()
+                       if count)
+    cell = (f"{block['abstained']} of {block['total']} checks ({rate}); "
+            f"{block['graded']} graded")
+    if detail:
+        cell += f" — {detail}"
+    if block.get("runs_without_pass_rate"):
+        cell += (f"; {block['runs_without_pass_rate']} of {block['runs']} "
+                 f"run(s) produced no pass rate at all")
+    return cell
+
+
 def _fmt_cell(stats, kind: str) -> str:
     """Render mean ± stddev for one metric, or an em dash when unmeasured."""
     if stats is None:
@@ -1035,7 +1150,13 @@ def _fmt_cell(stats, kind: str) -> str:
 
     cell = f"{mean} ± {spread} (n={stats['n']}"
     if stats["missing"]:
-        cell += f", {stats['missing']} unmeasured"
+        # For pass_rate a missing value is not an unmeasured one - the run was
+        # graded, and every expectation in it abstained, so there is no rate.
+        # Calling that "unmeasured" would file a real finding under "we did not
+        # look" (contract C16).
+        cell += (f", {stats['missing']} with no rate"
+                 if kind == "pass_rate" else
+                 f", {stats['missing']} unmeasured")
     return cell + ")"
 
 
@@ -1078,13 +1199,24 @@ def _per_eval_rows(benchmark: dict, primary, baseline) -> list:
     for run in benchmark.get("runs", []):
         key = run["eval_id"]
         entry = by_eval.setdefault(
-            key, {"name": run.get("eval_name"), "configs": {}})
+            key, {"name": run.get("eval_name"), "configs": {}, "abstain": {}})
         if entry["name"] is None:
             entry["name"] = run.get("eval_name")
         rates = entry["configs"].setdefault(run["configuration"], [])
-        rate = (run.get("result") or {}).get("pass_rate")
+        result = run.get("result") or {}
+        rate = result.get("pass_rate")
         if isinstance(rate, (int, float)) and not isinstance(rate, bool):
             rates.append(rate)
+        # Counted per eval as well as per configuration: a single eval whose
+        # checks nobody could rule on is invisible in a pooled figure, and it
+        # is exactly the eval whose 100%-over-two-checks needs the caveat.
+        tally = entry["abstain"].setdefault(
+            run["configuration"], {"abstained": 0, "total": 0, "known": False})
+        counts = (result.get("abstained"), result.get("total"))
+        if all(isinstance(v, int) and not isinstance(v, bool) for v in counts):
+            tally["abstained"] += counts[0]
+            tally["total"] += counts[1]
+            tally["known"] = True
 
     rows = []
     for eval_id in sorted(by_eval, key=_eval_sort_key):
@@ -1095,6 +1227,12 @@ def _per_eval_rows(benchmark: dict, primary, baseline) -> list:
                 return None
             return sum(values) / len(values)
 
+        def abstained_of(config):
+            tally = entry["abstain"].get(config)
+            if not tally or not tally["known"]:
+                return ABSENT
+            return f"{tally['abstained']}/{tally['total']}"
+
         p_mean = mean_of(primary)
         b_mean = mean_of(baseline)
         if baseline is None and primary is not None:
@@ -1104,7 +1242,14 @@ def _per_eval_rows(benchmark: dict, primary, baseline) -> list:
             paired = ABSENT
         elif p_mean is None or b_mean is None:
             delta = ABSENT
-            paired = "no"
+            # An eval both sides ran, where one side's expectations all
+            # abstained, is NOT an unpaired eval. Printing "no" there says the
+            # baseline never attempted it, which is a different and worse
+            # finding than the true one: both attempted it and neither
+            # produced a rate to compare.
+            ran_both = (primary in entry["configs"]
+                        and baseline in entry["configs"])
+            paired = "no rate" if ran_both else "no"
         else:
             delta = f"{(p_mean - b_mean) * 100:+.0f} pp"
             paired = "yes"
@@ -1113,6 +1258,8 @@ def _per_eval_rows(benchmark: dict, primary, baseline) -> list:
             "name": entry["name"] or ABSENT,
             "primary": f"{p_mean * 100:.0f}%" if p_mean is not None else ABSENT,
             "baseline": f"{b_mean * 100:.0f}%" if b_mean is not None else ABSENT,
+            "primary_abstained": abstained_of(primary),
+            "baseline_abstained": abstained_of(baseline),
             "delta": delta,
             "paired": paired,
         })
@@ -1242,6 +1389,46 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
         "runs, not over assertions).",
     ])
 
+    # Contract C16. This block sits directly under the summary table because
+    # the pass rate above cannot be read without it: 100% over two graded
+    # checks and nine abstentions is not the same result as 100% over eleven,
+    # and the row above renders both as `100%`.
+    p_abstain = primary_summary.get("abstention")
+    b_abstain = baseline_summary.get("abstention")
+    if p_abstain or b_abstain:
+        lines.extend([
+            "",
+            "## Abstentions",
+            "",
+            f"| Configuration | Abstained | Detail |",
+            "|---------------|-----------|--------|",
+        ])
+        for config, block in ((primary, p_abstain), (baseline, b_abstain)):
+            if config is None:
+                continue
+            lines.append(
+                f"| {_label(config)} | {_fmt_abstention(block, short=True)} "
+                f"| {_fmt_abstention(block)} |")
+        lines.extend([
+            "",
+            f"An abstention is a check the judge declined to rule on, not a "
+            f"check that failed. It leaves the pass-rate denominator entirely: "
+            f"{PASS_RATE_RULE}. `jurisdiction` means the check was outside what "
+            f"the judge could rule on; `evidence` means it was in scope but the "
+            f"run did not produce what a ruling needed.",
+            "",
+            "**There is deliberately no delta on this row and no polarity.** "
+            "Every other metric here declares which direction is better "
+            "(contract C5) and abstention has no honest answer: a judge that "
+            "abstains freely produces a benchmark that measures nothing while "
+            "looking rigorous, and a judge that never abstains is the defect "
+            "that made an unverifiable check count as evidence against the "
+            "skill. Read the number against the pass rate beside it — a high "
+            "pass rate over a small graded fraction is a weak result, not a "
+            "strong one — and against the same figure from the previous "
+            "iteration, where a jump is a judge that has drifted.",
+        ])
+
     # Per-eval breakdown. Without it one catastrophic eval among five is
     # invisible in the shared artifact, and a `± 35%` that is entirely
     # between-eval difficulty reads as run-to-run noise.
@@ -1251,17 +1438,26 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
             "",
             "## By eval",
             "",
-            "Per-eval mean pass rate over that eval's runs. `Paired` is whether "
-            "both configurations ran it; only paired evals contribute to the "
+            "Per-eval mean pass rate over that eval's runs, with the "
+            "abstentions that rate was computed *around* — `Abst.` is "
+            "abstained/total checks for that eval. A rate of `—` beside a "
+            "full-count abstention is an eval nobody could rule on: it has no "
+            "pass rate, and it is not a zero. `Paired` is whether both "
+            "configurations ran it and both produced a rate — `no` means one "
+            "side never ran it, `no rate` means both ran it and at least one "
+            "produced no rate to compare. Only `yes` rows contribute to the "
             "delta above.",
             "",
-            f"| Eval | Name | {_label(primary)} | {_label(baseline)} | Delta | Paired |",
-            "|------|------|------------|---------------|-------|--------|",
+            f"| Eval | Name | {_label(primary)} | Abst. | {_label(baseline)} "
+            f"| Abst. | Delta | Paired |",
+            "|------|------|------------|-------|---------------|-------|-------|--------|",
         ])
         for row in rows:
             lines.append(
                 f"| {row['eval_id']} | {row['name']} | {row['primary']} "
-                f"| {row['baseline']} | {row['delta']} | {row['paired']} |"
+                f"| {row['primary_abstained']} | {row['baseline']} "
+                f"| {row['baseline_abstained']} | {row['delta']} "
+                f"| {row['paired']} |"
             )
 
     other = [c for c in run_summary
@@ -1272,7 +1468,8 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
             stats = run_summary[config]
             lines.append(
                 f"- **{_label(config)}**: pass rate "
-                f"{_fmt_cell(stats.get('pass_rate'), 'pass_rate')} "
+                f"{_fmt_cell(stats.get('pass_rate'), 'pass_rate')}, "
+                f"abstentions {_fmt_abstention(stats.get('abstention'), short=True)} "
                 f"(not part of the delta)"
             )
 
@@ -1362,10 +1559,18 @@ def main(argv=None) -> int:
         searched = "\n".join(f"  {p}" for p in discovery["searched"])
         excluded = ""
         if discovery["exclusions"]:
-            excluded = "\n\nFound but excluded:\n" + "\n".join(
-                f"  {item['path']}\n    {item['reason']}"
-                for item in discovery["exclusions"]
-            )
+            # The validator's own messages, not just the one-line reason. When
+            # every grading file was excluded there is no benchmark and no
+            # `exclusions` array to read afterwards, so this console block is
+            # the only place the diagnosis exists - and "failed schema
+            # validation" alone does not tell anyone that their files are in
+            # the previous contract's shape and how to migrate them.
+            blocks = []
+            for item in discovery["exclusions"]:
+                lines = [f"  {item['path']}", f"    {item['reason']}"]
+                lines.extend(f"      - {err}" for err in item.get("errors", []))
+                blocks.append("\n".join(lines))
+            excluded = "\n\nFound but excluded:\n" + "\n".join(blocks)
         return _fail(
             f"{condition_line(ZERO_RUNS)}. No benchmark was written - a "
             f"benchmark built from nothing renders as a real result.\n\n"
@@ -1423,11 +1628,23 @@ def main(argv=None) -> int:
         elif config == baseline:
             role = " [baseline]"
         n = benchmark["metadata"]["runs_per_configuration_by_config"].get(config, 0)
-        if stats is None:
+        abstention = run_summary[config].get("abstention")
+        # Printed on the same line as the rate, always. A rate on its own line
+        # is the artifact C16 says must not exist.
+        beside = f", abstentions {_fmt_abstention(abstention, short=True)}"
+        if stats is None and n == 0:
             print(f"  {_label(config)}{role}: no usable runs", file=log)
+        elif stats is None:
+            no_rate = (abstention or {}).get("runs_without_pass_rate") or 0
+            why = ""
+            if abstention and no_rate and no_rate == abstention.get("runs"):
+                why = (" - every expectation in every run abstained, so there "
+                       "is no rate to report. This is not 0%")
+            print(f"  {_label(config)}{role}: no pass rate{why} "
+                  f"(n={n}{beside})", file=log)
         else:
             print(f"  {_label(config)}{role}: {stats['mean'] * 100:.1f}% pass "
-                  f"rate (n={n})", file=log)
+                  f"rate (n={n}{beside})", file=log)
 
     delta = run_summary.get("delta", {}).get("pass_rate", {})
     basis = ""

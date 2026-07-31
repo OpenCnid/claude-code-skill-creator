@@ -21,6 +21,7 @@
         "pass_rate": 0.0,
         "passed": 0,
         "failed": 1,
+        "abstained": 0,
         "total": 1,
         "time_seconds": 2.0,
         "tokens": 100
@@ -28,7 +29,8 @@
       "expectations": [
         {
           "text": "Check A",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "checked"
         }
       ],
@@ -43,6 +45,7 @@
         "pass_rate": 1.0,
         "passed": 1,
         "failed": 0,
+        "abstained": 0,
         "total": 1,
         "time_seconds": null,
         "tokens": null
@@ -50,7 +53,8 @@
       "expectations": [
         {
           "text": "Check A",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "checked"
         }
       ],
@@ -65,6 +69,7 @@
         "pass_rate": 0.0,
         "passed": 0,
         "failed": 1,
+        "abstained": 0,
         "total": 1,
         "time_seconds": 2.0,
         "tokens": 100
@@ -72,7 +77,8 @@
       "expectations": [
         {
           "text": "Check A",
-          "passed": false,
+          "verdict": "fail",
+          "abstainReason": null,
           "evidence": "checked"
         }
       ],
@@ -87,6 +93,7 @@
         "pass_rate": 1.0,
         "passed": 1,
         "failed": 0,
+        "abstained": 0,
         "total": 1,
         "time_seconds": 2.0,
         "tokens": 100
@@ -94,7 +101,8 @@
       "expectations": [
         {
           "text": "Check A",
-          "passed": true,
+          "verdict": "pass",
+          "abstainReason": null,
           "evidence": "checked"
         }
       ],
@@ -127,6 +135,19 @@
         "n": 1,
         "missing": 1
       },
+      "abstention": {
+        "abstained": 0,
+        "graded": 2,
+        "total": 2,
+        "rate": 0.0,
+        "reasons": {
+          "jurisdiction": 0,
+          "evidence": 0,
+          "untyped": 0
+        },
+        "runs": 2,
+        "runs_without_pass_rate": 0
+      },
       "runs": 2
     },
     "without_skill": {
@@ -154,6 +175,19 @@
         "n": 2,
         "missing": 0
       },
+      "abstention": {
+        "abstained": 0,
+        "graded": 2,
+        "total": 2,
+        "rate": 0.0,
+        "reasons": {
+          "jurisdiction": 0,
+          "evidence": 0,
+          "untyped": 0
+        },
+        "runs": 2,
+        "runs_without_pass_rate": 0
+      },
       "runs": 2
     },
     "delta": {
@@ -170,7 +204,7 @@
       "path": "iteration-1/eval-0-fully-dropped/with_skill/run-1/grading.json",
       "reason": "[C12:schema_invalid=error] a grading.json or timing.json failed schema validation, so it is excluded from aggregation and listed in exclusions. failed grading.json schema validation",
       "errors": [
-        "expectations[0]: has 'met' but the viewer reads 'passed'"
+        "expectations[0]: has 'met' where the contract has 'verdict'"
       ]
     },
     {

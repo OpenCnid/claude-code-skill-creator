@@ -27,10 +27,15 @@ Placement is now checked as hard as content:
     flat file was *not* read. This script used to print "readers normalize it
     to run-1" for that shape too, which asserted a read that did not happen:
     the run directories win and the flat file is discarded (R8);
-  * `summary.failed` is cross-checked, and `passed + failed == total ==
-    len(expectations)` is enforced (contract C3);
-  * `pass_rate` must be a JSON number in [0.0, 1.0] - a string or a percentage
-    is an error, not a coercion;
+  * `summary.failed` is cross-checked, and `passed + failed + abstained ==
+    total == len(expectations)` is enforced (contracts C3, C16);
+  * `pass_rate` must be a JSON number in [0.0, 1.0], or `null` when nothing was
+    graded - a string or a percentage is an error, not a coercion;
+  * verdicts are ternary (contract C16). `verdict` is one of `pass`, `fail`,
+    `abstain`; `abstainReason` is required when and only when the verdict is
+    `abstain`. The retired boolean `passed` is detected by name and reported as
+    the *previous contract* with the migration spelled out, rather than as a
+    generic "unexpected type" that says nothing about what changed;
   * sibling `timing.json` and the eval directory's `eval_metadata.json` are
     validated too, because they are the inputs to the token, duration, and
     eval-name columns.
@@ -123,6 +128,116 @@ ABSENT = "—"  # em dash - what an unknown measurement renders as (C4)
 
 
 # --------------------------------------------------------------------------
+# Contract C16 - verdicts are ternary, and "I cannot tell" is not a failure.
+#
+# These four names are the vocabulary. They live here, once, and
+# `aggregate_benchmark` imports them rather than restating them - a second copy
+# of a closed enum is the drift surface C12 was written about.
+# --------------------------------------------------------------------------
+
+VERDICTS = ("pass", "fail", "abstain")
+
+#: The two typed reasons an abstention may carry. They are not interchangeable
+#: and they are not free text: `jurisdiction` says the seat could not rule on
+#: this at all, `evidence` says it could have but the artifacts did not carry
+#: what the ruling needed. The first is a statement about the expectation set,
+#: the second about the run - and an analyst reading a drifted judge needs to
+#: know which one it drifted toward.
+ABSTAIN_REASONS = ("jurisdiction", "evidence")
+
+ABSTAIN_REASON_MEANINGS = {
+    "jurisdiction": "outside what this judge can rule on",
+    "evidence": ("in jurisdiction, but the evidence needed to decide was not "
+                 "in hand"),
+}
+
+#: Said once, by every component that has to say it. `pass_rate` is a rate over
+#: the expectations that were actually *ruled on*; abstentions leave the
+#: denominator entirely rather than landing in it as failures. Under the
+#: previous contract they landed in it as failures, so an expectation nobody
+#: could check counted as evidence against the skill.
+PASS_RATE_RULE = ("`pass_rate = passed / (passed + failed)`, null when that "
+                  "denominator is zero - per contract C4 a rate over nothing "
+                  "is not zero")
+
+#: Printed whenever a file is found in the shape the previous contract defined.
+#: A generic "expectations[0].passed: must be a JSON boolean, got str" would be
+#: true and useless: the reader's file is not malformed, it is *last version's
+#: format*, and what they need is the mapping, not a type name.
+PREVIOUS_CONTRACT_MESSAGE = """\
+expectations[]: {count} entr{y} carr{ies} the boolean `passed` and no `verdict`. \
+That is the PREVIOUS grading contract, not a malformed file.
+
+      Contract C16 replaced it: a verdict is now one of `pass`, `fail`, \
+`abstain`, and
+      `passed` was REMOVED rather than kept alongside - two representations of \
+one fact
+      that must agree are a drift surface.
+
+      Migrate each entry:
+        {{"passed": true}}   ->  {{"verdict": "pass",  "abstainReason": null}}
+        {{"passed": false}}  ->  {{"verdict": "fail",  "abstainReason": null}}
+      but only where the evidence actually showed the expectation false. Where \
+the
+      grader could not tell, `false` was the old contract's answer and is no \
+longer
+      the right one:
+        could not tell  ->  {{"verdict": "abstain", "abstainReason": \
+"evidence"}}
+        not this judge's call  ->  {{"verdict": "abstain", "abstainReason": \
+"jurisdiction"}}
+
+      And in `summary`: add `abstained`, keep `passed + failed + abstained == \
+total`,
+      and set {rule}."""
+
+
+def previous_contract_message(count: int) -> str:
+    """`PREVIOUS_CONTRACT_MESSAGE` with its counts agreed."""
+    return PREVIOUS_CONTRACT_MESSAGE.format(
+        count=count,
+        y="y" if count == 1 else "ies",
+        ies="ies" if count == 1 else "y",
+        rule=PASS_RATE_RULE,
+    )
+
+
+def compute_pass_rate(passed: int, failed: int):
+    """`passed / (passed + failed)`, or None when nothing was graded.
+
+    The one implementation. `aggregate_benchmark` imports it; so do the tests.
+    Returning 0.0 for an all-abstain run is the exact defect C16 closes - it is
+    a confident number over data that does not support it.
+    """
+    graded = passed + failed
+    if graded <= 0:
+        return None
+    return passed / graded
+
+
+def summarize_verdicts(expectations) -> dict:
+    """`{passed, failed, abstained, total, pass_rate}` over an expectations array.
+
+    Entries whose `verdict` is not one of the three are counted in `total` and
+    nowhere else, so a caller can see that the counts do not close rather than
+    have an unknown verdict quietly absorbed into one of the buckets.
+    """
+    counts = {"pass": 0, "fail": 0, "abstain": 0}
+    total = 0
+    for exp in expectations or []:
+        total += 1
+        if isinstance(exp, dict) and exp.get("verdict") in counts:
+            counts[exp["verdict"]] += 1
+    return {
+        "passed": counts["pass"],
+        "failed": counts["fail"],
+        "abstained": counts["abstain"],
+        "total": total,
+        "pass_rate": compute_pass_rate(counts["pass"], counts["fail"]),
+    }
+
+
+# --------------------------------------------------------------------------
 # Field-name aliases seen in practice. Mapping wrong -> correct lets us give a
 # directly actionable error instead of just "unexpected schema".
 # --------------------------------------------------------------------------
@@ -131,19 +246,27 @@ EXPECTATION_ALIASES = {
     "name": "text",
     "assertion": "text",
     "description": "text",
-    "met": "passed",
-    "result": "passed",
-    "success": "passed",
     "details": "evidence",
     "reason": "evidence",
     "justification": "evidence",
+    "abstain_reason": "abstainReason",
+    "abstainreason": "abstainReason",
+    "abstainedReason": "abstainReason",
 }
+
+#: Names a grader reaches for when it means `verdict`. Every one of them held a
+#: boolean under the previous contract, so "rename it" is not the whole fix and
+#: the message says so.
+VERDICT_ALIASES = ("met", "result", "success", "outcome", "status")
 
 SUMMARY_ALIASES = {
     "pass_rate_percent": "pass_rate",
     "num_passed": "passed",
     "num_failed": "failed",
     "num_total": "total",
+    "num_abstained": "abstained",
+    "abstentions": "abstained",
+    "skipped": "abstained",
 }
 
 
@@ -351,7 +474,7 @@ def classify_grading_path(path: Path, root: Path) -> dict:
 # --------------------------------------------------------------------------
 
 def _check_expectation(exp, idx, errors):
-    """Validate one entry of the expectations array."""
+    """Validate one entry of the expectations array (contracts C3, C16)."""
     where = f"expectations[{idx}]"
 
     if not isinstance(exp, dict):
@@ -364,6 +487,15 @@ def _check_expectation(exp, idx, errors):
                 f"{where}: has '{wrong}' but the viewer reads '{correct}' - rename it"
             )
 
+    for wrong in VERDICT_ALIASES:
+        if wrong in exp and "verdict" not in exp:
+            errors.append(
+                f"{where}: has '{wrong}' where the contract has 'verdict'. "
+                f"Renaming is not the whole fix - 'verdict' is one of 'pass', "
+                f"'fail', 'abstain', not a boolean, and there is no boolean it "
+                f"can be spelled as (contract C16)"
+            )
+
     if "text" not in exp:
         errors.append(f"{where}: missing required field 'text'")
     elif not isinstance(exp["text"], str):
@@ -372,15 +504,85 @@ def _check_expectation(exp, idx, errors):
         errors.append(f"{where}.text: is empty - the viewer renders a bare "
                       "checkmark with no statement beside it")
 
-    if "passed" not in exp:
-        errors.append(f"{where}: missing required field 'passed'")
-    elif not isinstance(exp["passed"], bool):
-        # A string "true" reads as truthy everywhere downstream, so this one
-        # corrupts results rather than merely looking untidy.
+    # ---- verdict (contract C16) -----------------------------------------
+    legacy_boolean = "passed" in exp
+    if legacy_boolean and "verdict" not in exp:
+        # The file-level message already spelled out the migration; this line
+        # only says which entries it applies to, so a 40-expectation file does
+        # not repeat the whole mapping 40 times.
         errors.append(
-            f"{where}.passed: must be a JSON boolean, got "
-            f"{type(exp['passed']).__name__} ({exp['passed']!r})"
+            f"{where}: carries the retired boolean 'passed' and no 'verdict' "
+            f"(contract C16 - the migration is spelled out above)"
         )
+    else:
+        if legacy_boolean:
+            errors.append(
+                f"{where}: carries BOTH 'verdict' and the retired boolean "
+                f"'passed'. Contract C16 REMOVED 'passed'; it did not keep it "
+                f"alongside 'verdict'. Two representations of one fact that "
+                f"must agree drift the first time either is edited. Delete "
+                f"'passed'"
+            )
+
+        verdict = exp.get("verdict")
+        if "verdict" not in exp:
+            errors.append(
+                f"{where}: missing required field 'verdict' - one of "
+                f"{', '.join(repr(v) for v in VERDICTS)} (contract C16)"
+            )
+        elif isinstance(verdict, bool) or not isinstance(verdict, str):
+            hint = ""
+            if isinstance(verdict, bool):
+                hint = (f" - a boolean is the previous contract's shape; "
+                        f"{verdict} is now "
+                        f"\"{'pass' if verdict else 'fail'}\", and the case the "
+                        f"boolean could not express is \"abstain\"")
+            errors.append(
+                f"{where}.verdict: must be a JSON string, got "
+                f"{type(verdict).__name__} ({verdict!r}){hint}"
+            )
+        elif verdict not in VERDICTS:
+            hint = ""
+            lowered = verdict.strip().lower()
+            if lowered in ("true", "passed", "yes", "ok"):
+                hint = " - did you mean \"pass\"?"
+            elif lowered in ("false", "failed", "no"):
+                hint = (" - did you mean \"fail\"? If you could not tell, that "
+                        "is \"abstain\", not \"fail\"")
+            elif lowered in ("unknown", "skip", "skipped", "n/a", "na",
+                             "unverifiable", "undetermined"):
+                hint = (" - did you mean \"abstain\"? It also needs an "
+                        "abstainReason")
+            errors.append(
+                f"{where}.verdict: {verdict!r} is not one of "
+                f"{', '.join(repr(v) for v in VERDICTS)}{hint}"
+            )
+
+        # ---- abstainReason: required when and only when abstaining -------
+        reason = exp.get("abstainReason")
+        if verdict == "abstain":
+            if reason is None:
+                errors.append(
+                    f"{where}.abstainReason: required when the verdict is "
+                    f"'abstain', and "
+                    f"{'absent' if 'abstainReason' not in exp else 'null'}. "
+                    f"Use 'jurisdiction' ("
+                    f"{ABSTAIN_REASON_MEANINGS['jurisdiction']}) or 'evidence' "
+                    f"({ABSTAIN_REASON_MEANINGS['evidence']}). An untyped "
+                    f"abstention cannot be told from a judge that has stopped "
+                    f"ruling on anything"
+                )
+            elif reason not in ABSTAIN_REASONS:
+                errors.append(
+                    f"{where}.abstainReason: {reason!r} is not one of "
+                    f"{', '.join(repr(r) for r in ABSTAIN_REASONS)}"
+                )
+        elif verdict in ("pass", "fail") and reason is not None:
+            errors.append(
+                f"{where}.abstainReason: is {reason!r}, but the verdict is "
+                f"{verdict!r}. A reason is required when and only when the "
+                f"verdict is 'abstain'; write null or omit the field"
+            )
 
     if "evidence" not in exp:
         errors.append(f"{where}: missing 'evidence' - graded results are not "
@@ -397,47 +599,102 @@ def _check_summary(summary, expectations, errors):
         if wrong in summary and correct not in summary:
             errors.append(f"summary: has '{wrong}' but aggregation reads '{correct}'")
 
-    for field in ("passed", "failed", "total", "pass_rate"):
+    for field in ("passed", "failed", "abstained", "total", "pass_rate"):
         if field not in summary:
-            errors.append(f"summary: missing required field '{field}'")
+            hint = ""
+            if field == "abstained":
+                hint = (f" - contract C16 added it: `total` counts every "
+                        f"expectation, `abstained` counts the ones no verdict "
+                        f"was reached on, and {PASS_RATE_RULE}")
+            errors.append(f"summary: missing required field '{field}'{hint}")
 
-    for field in ("passed", "failed", "total"):
+    def whole(field):
+        """The integer at `summary[field]`, or None when it is not one."""
         value = summary.get(field)
-        if field in summary and (isinstance(value, bool) or not isinstance(value, int)):
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value
+
+    for field in ("passed", "failed", "abstained", "total"):
+        value = summary.get(field)
+        if field in summary and whole(field) is None:
             errors.append(
                 f"summary.{field}: must be a JSON integer, got "
                 f"{type(value).__name__} ({value!r})"
             )
+        elif whole(field) is not None and value < 0:
+            errors.append(f"summary.{field}: must not be negative, got {value!r}")
+
+    passed, failed = whole("passed"), whole("failed")
+    abstained, total = whole("abstained"), whole("total")
+    counts_known = None not in (passed, failed, abstained, total)
+    # None when the counts are unusable, so "is the denominator zero?" stays a
+    # question we decline to answer rather than one we answer wrongly.
+    denominator = (passed + failed) if None not in (passed, failed) else None
 
     rate = summary.get("pass_rate")
+    rate_is_number = (not isinstance(rate, bool)
+                      and isinstance(rate, (int, float)))
     if "pass_rate" in summary:
-        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+        if rate is None:
+            # Legitimate, and required, when nothing was graded. Checked
+            # against the denominator below rather than accepted outright.
+            pass
+        elif not rate_is_number:
             hint = ""
             if isinstance(rate, str):
-                hint = (" - pass_rate is a JSON number, not a string; a string "
-                        "compares and averages as garbage downstream")
+                hint = (" - pass_rate is a JSON number or null, not a string; a "
+                        "string compares and averages as garbage downstream")
             errors.append(
-                f"summary.pass_rate: must be a number in [0.0, 1.0], got "
-                f"{type(rate).__name__} ({rate!r}){hint}"
+                f"summary.pass_rate: must be a number in [0.0, 1.0] or null, "
+                f"got {type(rate).__name__} ({rate!r}){hint}"
             )
         elif not 0.0 <= rate <= 1.0:
             hint = (" (looks like a percentage - pass_rate is a 0..1 fraction)"
                     if rate > 1 else "")
             errors.append(f"summary.pass_rate: {rate} is outside [0.0, 1.0]{hint}")
 
-    # Contract C3: passed + failed == total == len(expectations). Enforced.
-    if (isinstance(summary.get("passed"), int)
-            and not isinstance(summary.get("passed"), bool)
-            and isinstance(summary.get("failed"), int)
-            and not isinstance(summary.get("failed"), bool)
-            and isinstance(summary.get("total"), int)
-            and not isinstance(summary.get("total"), bool)):
-        if summary["passed"] + summary["failed"] != summary["total"]:
+    # Contract C16: passed + failed + abstained == total == len(expectations).
+    if counts_known and passed + failed + abstained != total:
+        errors.append(
+            f"summary: passed ({passed}) + failed ({failed}) + abstained "
+            f"({abstained}) = {passed + failed + abstained}, but total is {total}"
+        )
+
+    # Contract C4 inside C16: the denominator excludes abstentions, and a rate
+    # over an empty denominator is null. `0.0` there is a measurement nobody
+    # made - it is the same lie as a benchmark of zeros over no runs.
+    if denominator is not None and "pass_rate" in summary:
+        if denominator == 0 and rate is not None:
             errors.append(
-                f"summary: passed ({summary['passed']}) + failed "
-                f"({summary['failed']}) = {summary['passed'] + summary['failed']}, "
-                f"but total is {summary['total']}"
+                f"summary.pass_rate is {rate!r} but nothing was graded "
+                f"(passed 0 + failed 0). {PASS_RATE_RULE}. A run whose "
+                f"expectations all abstained has no pass rate; reporting "
+                f"{rate!r} states a result the run does not contain"
             )
+        elif denominator > 0 and rate is None:
+            errors.append(
+                f"summary.pass_rate is null but {denominator} expectation(s) "
+                f"were graded (passed {passed} + failed {failed}). null means "
+                f"the denominator was zero; here it is {denominator}"
+            )
+        elif denominator > 0 and rate_is_number:
+            expected = compute_pass_rate(passed, failed)
+            if abs(rate - expected) > 0.01:
+                hints = []
+                if rate > 1:
+                    hints.append("looks like a percentage - pass_rate is a "
+                                 "0..1 fraction")
+                if total and abstained and abs(rate - passed / total) <= 0.01:
+                    hints.append(
+                        f"this is passed/total ({passed}/{total}); abstentions "
+                        f"leave the denominator, so it is "
+                        f"passed/(passed+failed) = {passed}/{denominator}")
+                hint = f" ({'; '.join(hints)})" if hints else ""
+                errors.append(
+                    f"summary.pass_rate is {rate} but the counts imply "
+                    f"{expected:.2f}{hint}"
+                )
 
     # Cross-check against the expectations the summary claims to summarize. A
     # summary that disagrees with its own array is worse than a missing one -
@@ -445,42 +702,51 @@ def _check_summary(summary, expectations, errors):
     if not isinstance(expectations, list):
         return
 
-    graded = [e for e in expectations
-              if isinstance(e, dict) and isinstance(e.get("passed"), bool)]
-    if len(graded) != len(expectations):
+    verdicted = [e for e in expectations
+                 if isinstance(e, dict) and e.get("verdict") in VERDICTS]
+    if len(verdicted) != len(expectations):
         return  # already reported per-expectation; counts would be noise
 
-    actual_passed = sum(1 for e in graded if e["passed"])
-    actual_total = len(graded)
-    actual_failed = actual_total - actual_passed
+    actual = summarize_verdicts(verdicted)
+    # The counts branch above already compared `pass_rate` against the numbers
+    # the summary itself declares. When those numbers agree with the array, the
+    # two checks are the same check and saying it twice trains people to skim.
+    counts_agree = counts_known and (passed, failed, abstained, total) == (
+        actual["passed"], actual["failed"], actual["abstained"], actual["total"])
 
-    if isinstance(summary.get("total"), int) and summary["total"] != actual_total:
+    if total is not None and total != actual["total"]:
         errors.append(
-            f"summary.total is {summary['total']} but there are "
-            f"{actual_total} expectations"
+            f"summary.total is {total} but there are {actual['total']} "
+            f"expectations"
         )
-    if isinstance(summary.get("passed"), int) and summary["passed"] != actual_passed:
-        errors.append(
-            f"summary.passed is {summary['passed']} but {actual_passed} "
-            f"expectations have passed=true"
-        )
-    # This cross-check was the one missing before: a file claiming
-    # {"passed":1,"failed":0,"total":3} over 3 expectations validated clean and
-    # the viewer rendered "1 passed, 0 failed of 3".
-    if isinstance(summary.get("failed"), int) and summary["failed"] != actual_failed:
-        errors.append(
-            f"summary.failed is {summary['failed']} but {actual_failed} "
-            f"expectations have passed=false"
-        )
+    for field, verdict in (("passed", "pass"), ("failed", "fail"),
+                           ("abstained", "abstain")):
+        # `summary.failed` was the cross-check that was missing before: a file
+        # claiming {"passed":1,"failed":0,"total":3} over 3 expectations
+        # validated clean and the viewer rendered "1 passed, 0 failed of 3".
+        # `abstained` is the same check on the field C16 added.
+        claimed = whole(field)
+        if claimed is not None and claimed != actual[field]:
+            errors.append(
+                f"summary.{field} is {claimed} but {actual[field]} "
+                f"expectation(s) have verdict=\"{verdict}\""
+            )
 
-    if isinstance(rate, (int, float)) and not isinstance(rate, bool) and actual_total:
-        expected_rate = actual_passed / actual_total
-        if abs(rate - expected_rate) > 0.01:
+    if counts_agree:
+        return
+
+    if actual["pass_rate"] is None and rate is not None:
+        errors.append(
+            f"summary.pass_rate is {rate!r} but every expectation abstained, "
+            f"so nothing was graded. {PASS_RATE_RULE}"
+        )
+    elif actual["pass_rate"] is not None and rate_is_number:
+        if abs(rate - actual["pass_rate"]) > 0.01:
             hint = (" (looks like a percentage - pass_rate is a 0..1 fraction)"
                     if rate > 1 else "")
             errors.append(
                 f"summary.pass_rate is {rate} but expectations imply "
-                f"{expected_rate:.2f}{hint}"
+                f"{actual['pass_rate']:.2f}{hint}"
             )
 
 
@@ -517,6 +783,14 @@ def validate_grading_file(path: Path):
     elif not expectations:
         errors.append("expectations: array is empty - nothing was graded")
     else:
+        # Say "this is the previous contract" once, before the per-entry
+        # errors, and say it in terms of the migration. Reported per entry it
+        # reads as forty type errors; reported once it reads as what it is.
+        legacy = sum(1 for e in expectations
+                     if isinstance(e, dict) and "passed" in e
+                     and "verdict" not in e)
+        if legacy:
+            errors.append(previous_contract_message(legacy))
         for idx, exp in enumerate(expectations):
             _check_expectation(exp, idx, errors)
 

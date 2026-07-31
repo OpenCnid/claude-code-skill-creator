@@ -29,15 +29,23 @@ suggestions — patterns, anomalies, and the things an average conceals.
    pass produces nothing the user ever sees. State the command in your closing report so the caller
    cannot skip it.
 
-2. **`runs[].result` carries exactly six keys — `pass_rate`, `passed`, `failed`, `total`,
-   `time_seconds`, `tokens`.** There is no output-volume column, no tool-call count, and no error
-   count anywhere in `benchmark.json`. Their only source was an `execution_metrics` block fed by a
-   `metrics.json` that no step in this workflow has ever written, so they were **removed rather than
+2. **`runs[].result` carries exactly seven keys — `pass_rate`, `passed`, `failed`, `abstained`,
+   `total`, `time_seconds`, `tokens`.** There is no output-volume column, no tool-call count, and no
+   error count anywhere in `benchmark.json`. Their only source was an `execution_metrics` block fed by
+   a `metrics.json` that no step in this workflow has ever written, so they were **removed rather than
    nulled**: a field that is permanently `null` reads as "measured, and the answer was nothing,"
    which is the same class of falsehood as a `0`. `null` is for data that could have been there this
    run and was not; absence is for data that can never be there. Their absence is pinned by
-   `tests/test_benchmark_contracts.py`. Read the six keys above; there is no seventh, and a note
+   `tests/test_benchmark_contracts.py`. Read the seven keys above; there is no eighth, and a note
    reporting one as unmeasured is a finding about a measurement that does not exist.
+
+3. **`pass_rate` is `passed / (passed + failed)` and can legitimately be `null`** (contract C16).
+   Verdicts are ternary — `pass`, `fail`, `abstain` — and an abstention is a check the judge declined
+   to rule on, tagged `jurisdiction` (outside what it could rule on) or `evidence` (in scope, but the
+   run did not produce what a ruling needed). Abstentions are in neither side of the rate. A run whose
+   expectations all abstained has **no** pass rate, contributes to no mean and to no delta, and is not
+   a 0% run. Do not write a note that reads a `null` rate as a failure; it is the absence of a
+   measurement, and the reason is in the abstention counts.
 
 3. **`null` is the aggregator's word for unmeasured, and it is never zero.** `time_seconds` and
    `tokens` are `null` in any run whose `timing.json` was absent; a whole `run_summary` metric is
@@ -88,14 +96,36 @@ Read these before drawing conclusions from the structure.
   `run_summary.delta.<metric>` entry is `primary − baseline` and carries `value`, `formatted`,
   `polarity`, and `better`. Polarity is declared per delta and nowhere else. Read `better`; do not
   re-derive improvement from the sign, because lower is better for `time_seconds` and `tokens`.
-- **`run_summary.<configuration>`** holds `pass_rate`, `time_seconds`, `tokens`, and `runs`. Each of
-  the three metrics is `{mean, stddev, min, max, n, missing}` or `null`. `n` counts the runs that
-  measured that metric, `missing` counts the ones that did not, and `runs` is the configuration's total
-  run count.
+- **`run_summary.<configuration>`** holds `pass_rate`, `time_seconds`, `tokens`, `abstention`, and
+  `runs`. Each of the three metrics is `{mean, stddev, min, max, n, missing}` or `null`. `n` counts the
+  runs that measured that metric, `missing` counts the ones that did not, and `runs` is the
+  configuration's total run count.
 - **`run_summary.<configuration>.pass_rate.mean` is a mean over runs, not over expectations.** An eval
   with two expectations weighs as much as one with twenty, so the headline rate can move because the
   small eval flipped. When you want the fraction of checks that passed, sum `result.passed` and
-  `result.total` across the runs yourself and say which of the two you are quoting.
+  `result.failed` across the runs yourself — `passed / (passed + failed)`, not `passed / total` — and
+  say which of the two you are quoting.
+- **`run_summary.<configuration>.abstention` is how you catch a judge that has drifted.** It carries
+  `abstained`, `graded`, `total`, `rate`, a `reasons` split into `jurisdiction` / `evidence` /
+  `untyped`, `runs`, and `runs_without_pass_rate`. Three notes are worth writing from it, and nobody
+  else is positioned to write them:
+
+  - **A high rate over a small graded fraction is a weak result, not a strong one.** 100% over two
+    ruled-on checks and nine abstentions renders as `100%` — identical to 100% over eleven. Whenever
+    you quote a pass rate, quote `graded`/`total` beside it.
+  - **A jump in the abstention rate between iterations is a judge that changed, not a skill that
+    changed.** Compare against the previous iteration's `benchmark.json` when you have one. The pass
+    rate can move entirely because the denominator did.
+  - **A lopsided abstention rate between the two configurations invalidates the delta.** Abstaining
+    more readily on one side moves the comparison and leaves no trace in either rate.
+
+  It is deliberately **not** a delta metric and declares no polarity: a judge that abstains freely
+  produces a benchmark measuring nothing while looking rigorous, and a judge that never abstains
+  counts unverifiable checks as failures. Do not recommend a direction. Report the number, and where
+  the `reasons` split points at a fix, say which: heavy `jurisdiction` means the assertions are asking
+  the judge questions it cannot answer, and heavy `evidence` means the runs are not capturing what a
+  ruling needs — a transcript, a wider `outputs/`, something the eval should ask the agent to write
+  down.
 - **`metadata.runs_per_configuration` is `null` when the configurations ran different numbers of
   times**, and the real counts are in `metadata.runs_per_configuration_by_config`. That `null` is an
   imbalance signal rather than a missing measurement, and an unequal comparison is worth a note.
