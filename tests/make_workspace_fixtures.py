@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Workspace fixtures for the benchmark-pipeline contract tests.
 
-Each fixture is a skill-creator workspace built to reproduce one documented
+Each fixture is a better-skill-creator workspace built to reproduce one documented
 defect. `build(root)` materializes all of them under `root`; running this
 module regenerates the committed copy at `tests/fixtures/workspaces/`.
 

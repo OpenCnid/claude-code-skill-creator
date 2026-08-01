@@ -1,10 +1,10 @@
 ---
-name: skill-creator
+name: better-skill-creator
 description: "Use this skill for anything to do with authoring, fixing, or measuring Claude skills. Reach for it whenever someone wants to turn a repeated workflow, house format, template, or set of team conventions into something Claude applies automatically every time, even when they never use the word 'skill' and only describe the outcome they want. Also use it when a SKILL.md already exists and misbehaves: it never fires, it fires on the wrong things, the frontmatter will not validate, it has grown too long to follow, or its outputs are inconsistent. Use it to word a description so triggering is reliable, to run evals comparing a skill against a no-skill baseline to find out whether it actually helps, to decide whether something should be a skill at all, and to package one so teammates can install it. Consult it even when the SKILL.md is sitting right there and the format looks simple enough to answer from memory."
 license: Apache-2.0
 ---
 
-# Skill Creator
+# Better Skill Creator
 
 Build a skill, find out whether it actually helps, and improve it on the evidence.
 

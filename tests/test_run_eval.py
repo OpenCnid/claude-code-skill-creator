@@ -10,7 +10,7 @@ Cross-references are to research/02-trigger-eval.md (F...), 16-own-description.m
 05-cost-safety-resource.md and 01-windows-encoding.md.
 
 Nothing here spends money. `scripts/run_eval` launches whatever
-SKILL_CREATOR_CLAUDE_ARGV names, and these tests point it at
+BETTER_SKILL_CREATOR_CLAUDE_ARGV names, and these tests point it at
 tests/fixtures/stub_claude.py, which replays two *real* captured `claude -p`
 streams: one where the model invoked the probe's clone as its first tool, and
 one where five identical clones were visible and the model refused to invoke any
@@ -71,9 +71,9 @@ class StubHarness(unittest.TestCase):
 
         self._saved_env = {
             k: os.environ.get(k)
-            for k in ("SKILL_CREATOR_CLAUDE_ARGV", "STUB_CLAUDE_CONTROL", "STUB_CLAUDE_REPORT")
+            for k in ("BETTER_SKILL_CREATOR_CLAUDE_ARGV", "STUB_CLAUDE_CONTROL", "STUB_CLAUDE_REPORT")
         }
-        os.environ["SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps([sys.executable, str(STUB)])
+        os.environ["BETTER_SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps([sys.executable, str(STUB)])
         os.environ["STUB_CLAUDE_CONTROL"] = str(self.control_path)
         os.environ["STUB_CLAUDE_REPORT"] = str(self.report_path)
         self.addCleanup(self._restore_env)
@@ -221,7 +221,7 @@ class TestErrorsAreNotNonTriggers(StubHarness):
         self.assertIn("timeout", record["error"])
 
     def test_missing_cli_is_an_error(self):
-        os.environ["SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps(
+        os.environ["BETTER_SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps(
             [str(self.tmp / "definitely-not-a-real-binary")]
         )
         record = self.probe(timeout=10)

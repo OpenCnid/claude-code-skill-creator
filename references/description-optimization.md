@@ -86,7 +86,7 @@ Bad queries produce a confidently wrong description, so this step earns its time
    from importlib import import_module
    import html as html_mod, sys
 
-   sys.path.insert(0, "<skill-creator-path>")
+   sys.path.insert(0, "<better-skill-creator-path>")
    to_script_literal = import_module("eval-viewer.generate_review").to_script_literal
 
    page = Path("assets/eval_review.html").read_text(encoding="utf-8")

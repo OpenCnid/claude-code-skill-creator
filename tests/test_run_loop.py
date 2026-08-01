@@ -15,7 +15,7 @@ Nothing here spends money. Two seams are used, both of them real code paths:
 
 * the *probes* are driven by replacing `run_eval.run_single_query` with a
   programmable fake, so `run_eval`'s own aggregation runs for real;
-* the *optimizer* is driven by pointing `SKILL_CREATOR_CLAUDE_ARGV` at
+* the *optimizer* is driven by pointing `BETTER_SKILL_CREATOR_CLAUDE_ARGV` at
   tests/fixtures/stub_claude.py, so `improve_description` runs for real,
   subprocess and all, and records the prompt it was handed.
 
@@ -105,10 +105,10 @@ class LoopHarness(unittest.TestCase):
 
         self._saved_env = {
             k: os.environ.get(k)
-            for k in ("SKILL_CREATOR_CLAUDE_ARGV", "STUB_CLAUDE_CONTROL",
+            for k in ("BETTER_SKILL_CREATOR_CLAUDE_ARGV", "STUB_CLAUDE_CONTROL",
                       "STUB_CLAUDE_PROMPT_LOG", "STUB_CLAUDE_REPORT")
         }
-        os.environ["SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps([sys.executable, str(STUB)])
+        os.environ["BETTER_SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps([sys.executable, str(STUB)])
         os.environ["STUB_CLAUDE_CONTROL"] = str(self.control_path)
         os.environ["STUB_CLAUDE_PROMPT_LOG"] = str(self.prompt_log)
         os.environ.pop("STUB_CLAUDE_REPORT", None)

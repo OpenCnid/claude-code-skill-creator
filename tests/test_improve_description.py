@@ -11,7 +11,7 @@ siblings sat at 84-96%. Verification called that out as the highest-blast-radius
 gap in the tree (research/V7-verification.md B, _REMEDIATION.md R2).
 
 Nothing here spends money. `improve_description._call_claude` launches whatever
-`SKILL_CREATOR_CLAUDE_ARGV` names; these tests point it at
+`BETTER_SKILL_CREATOR_CLAUDE_ARGV` names; these tests point it at
 tests/fixtures/stub_claude.py in its optimizer mode, which records the prompt it
 was handed to `STUB_CLAUDE_PROMPT_LOG`. That is the point: the assertions are
 about **what the optimizer was shown and what came back**, not about how the
@@ -57,10 +57,10 @@ class OptimizerHarness(unittest.TestCase):
 
         self._saved_env = {
             k: os.environ.get(k)
-            for k in ("SKILL_CREATOR_CLAUDE_ARGV", "STUB_CLAUDE_CONTROL",
+            for k in ("BETTER_SKILL_CREATOR_CLAUDE_ARGV", "STUB_CLAUDE_CONTROL",
                       "STUB_CLAUDE_PROMPT_LOG", "STUB_CLAUDE_REPORT")
         }
-        os.environ["SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps([sys.executable, str(STUB)])
+        os.environ["BETTER_SKILL_CREATOR_CLAUDE_ARGV"] = json.dumps([sys.executable, str(STUB)])
         os.environ["STUB_CLAUDE_CONTROL"] = str(self.control_path)
         os.environ["STUB_CLAUDE_PROMPT_LOG"] = str(self.prompt_log)
         os.environ.pop("STUB_CLAUDE_REPORT", None)

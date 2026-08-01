@@ -1,4 +1,4 @@
-# claude-code-skill-creator
+# better-skill-creator
 
 A skill for building Claude skills — and for finding out whether the one you built actually helps.
 
@@ -79,27 +79,27 @@ actually happened. Run `python -m unittest discover tests` to see the current co
 A skill is a directory. Copy it where Claude looks:
 
 ```bash
-git clone https://github.com/<owner>/claude-code-skill-creator
-cp -r claude-code-skill-creator ~/.claude/skills/skill-creator      # personal
-cp -r claude-code-skill-creator .claude/skills/skill-creator        # this project
+git clone https://github.com/<owner>/better-skill-creator
+cp -r better-skill-creator ~/.claude/skills/better-skill-creator      # personal
+cp -r better-skill-creator .claude/skills/better-skill-creator        # this project
 ```
 
 Claude Code picks it up live — no restart. Then just describe what you want:
 
 > "I keep writing the same kind of release notes by hand. Can we make Claude do it the way I do it?"
 
-**Note on the name.** The repository is `claude-code-skill-creator`, but the skill it ships is
-`skill-creator` — which is why the commands above rename it on the way in. Claude Code takes a skill's
-invocation name from its **directory**, so installing it as `skill-creator` means a personal or
-project copy **shadows** the plugin-installed one of the same name. That is intentional.
+**Note on the name.** The repository, the directory you install it as, and the frontmatter `name` are
+all `better-skill-creator`. Claude Code takes a skill's invocation name from its **directory**, so
+holding all three in agreement is what makes it answer to the name its own file states.
 
 Two consequences worth knowing:
 
-- If you want both available, install it under a different directory name **and** change the
-  frontmatter `name` to match. Changing only one of them gets you a skill that answers to a name its
-  own file doesn't state.
-- `package_skill` refuses to build an archive when the directory and the frontmatter `name` disagree,
-  so package from an installed copy (or a directory named `skill-creator`), not from the clone root.
+- This does **not** shadow Anthropic's `skill-creator`. Install both and both stay available, each
+  under its own name. If you would rather this one take that name over, install it into a directory
+  called `skill-creator` **and** change the frontmatter `name` to match. Changing only one of them
+  gets you a skill that answers to a name its own file doesn't state.
+- `package_skill` refuses to build an archive when the directory and the frontmatter `name` disagree.
+  They agree here, so you can package straight from the clone root.
 
 ## Requirements
 

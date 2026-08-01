@@ -58,7 +58,7 @@ class WorkspaceCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._tmp = tempfile.mkdtemp(prefix="skillcreator-bench-")
+        cls._tmp = tempfile.mkdtemp(prefix="better-skillcreator-bench-")
         cls.root = build(Path(cls._tmp))
 
     @classmethod

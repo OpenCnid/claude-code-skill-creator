@@ -1,4 +1,4 @@
-"""Shared utilities for skill-creator scripts.
+"""Shared utilities for better-skill-creator scripts.
 
 Derived from ``anthropics/skills``, ``skills/skill-creator/scripts/utils.py``
 (Apache-2.0 -- see LICENSE.txt).

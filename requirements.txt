@@ -1,4 +1,4 @@
-# Runtime dependencies for claude-code-skill-creator.
+# Runtime dependencies for better-skill-creator.
 #
 #   python -m pip install -r requirements.txt
 #

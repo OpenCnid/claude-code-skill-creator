@@ -10,7 +10,7 @@ option, and cheap is a real property — it is one sub-agent invocation per run 
 characterizer, a composer, a seat per belief-facing surface, and an audit pass over all of them.
 
 The **composed panel** (`agents/panel/`) is becoming the default for graded runs, for the reason
-contract C17 gives: skill-creator grades a different domain every invocation — a document skill, a
+contract C17 gives: better-skill-creator grades a different domain every invocation — a document skill, a
 charting skill, a code-review skill — and one fixed judge is guaranteed to be miscalibrated for most
 of them. A panel is composed per domain at runtime and gated before it judges anything.
 

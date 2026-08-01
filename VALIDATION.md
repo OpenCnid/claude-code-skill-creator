@@ -5,8 +5,9 @@ nobody can see. So it was tested in a clean room rather than by its authors' jud
 records what that produced — including the parts that did not go well, because a validation record
 that only carries wins is a marketing document.
 
-Method: [the `self-play` protocol](https://github.com/anthropics/skills) — pre-register, build the
-ground blind, isolate the players, evaluate blind, calibrate honestly.
+Method: our own `self-play` protocol — pre-register, build the ground blind, isolate the players,
+evaluate blind, calibrate honestly. It is a house skill, not part of the upstream bundle this project
+derives from, and nothing here imports it: it shaped how the panel was tested, not how it runs.
 
 ---
 

@@ -1,6 +1,6 @@
 # JSON schemas
 
-Every JSON artifact that crosses a boundary inside skill-creator: what writes it, what reads it, what
+Every JSON artifact that crosses a boundary inside better-skill-creator: what writes it, what reads it, what
 its fields are called, and which checker proves you got it right.
 
 Field names here are **binding and case-sensitive**. They are the same names `scripts/validate_grading.py`

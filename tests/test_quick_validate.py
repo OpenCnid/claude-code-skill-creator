@@ -569,7 +569,7 @@ class ValidateSkillContract(unittest.TestCase):
             self.assertGreaterEqual(len(message.splitlines()), 5)
             self.assertIn("portable", message)
 
-    def test_skill_creator_itself_validates_for_claude_code(self) -> None:
+    def test_better_skill_creator_itself_validates_for_claude_code(self) -> None:
         ok, message = validate_skill(SKILL_ROOT, "claude-code")
         self.assertTrue(ok, message)
 

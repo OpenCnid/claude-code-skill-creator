@@ -64,7 +64,7 @@ class FrontmatterObeysItsOwnRules(unittest.TestCase):
 
     def test_description_is_quoted(self):
         """An unquoted colon-space parses as a nested mapping; the body then loads with empty
-        metadata, so /skill-creator works while auto-triggering silently never fires."""
+        metadata, so /better-skill-creator works while auto-triggering silently never fires."""
         line = next(l for l in self.text.splitlines() if l.startswith("description:"))
         value = line.split(":", 1)[1].strip()
         self.assertTrue(
@@ -86,11 +86,13 @@ class FrontmatterObeysItsOwnRules(unittest.TestCase):
     def test_install_directory_matches_frontmatter_name(self):
         """The rule is about the INSTALLED directory, not the checkout directory.
 
-        This repository is named for discoverability (`claude-code-skill-creator`) while the
-        skill it ships is `skill-creator`, so that a personal or project copy shadows the
-        plugin-installed one of the same name. A clone therefore sits in a directory that does
-        not match, which is fine and expected -- Claude Code only reads the directory name once
-        the skill is installed under a skills/ path.
+        This project ships as `better-skill-creator`, and the repository, the directory the
+        README tells you to install it as, and the frontmatter name are all that same string.
+        Holding them in agreement is what makes the skill answer to the name its own file
+        states, since Claude Code takes the invocation name from the directory and treats the
+        frontmatter as display-only. A clone sitting in a differently-named directory is still
+        fine -- Claude Code only reads the directory name once the skill is installed under a
+        skills/ path.
 
         What must hold is that the README tells you the directory to install it AS, and that the
         name it tells you matches the frontmatter. Otherwise the skill answers to a name its own

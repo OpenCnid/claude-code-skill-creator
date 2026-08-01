@@ -626,7 +626,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m scripts.preflight",
         description=(
-            "Validate a skill-creator workspace against contracts C1/C2/C3 "
+            "Validate a better-skill-creator workspace against contracts C1/C2/C3 "
             "before any sub-agent spend. Filesystem and JSON only."
         ),
     )

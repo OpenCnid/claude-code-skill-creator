@@ -2,7 +2,7 @@
 """A stand-in for the `claude` CLI, so the trigger-eval tests cost nothing.
 
 `scripts/run_eval.py` and `scripts/improve_description.py` both launch whatever
-`SKILL_CREATOR_CLAUDE_ARGV` names, so the tests point that at
+`BETTER_SKILL_CREATOR_CLAUDE_ARGV` names, so the tests point that at
 `[sys.executable, <this file>]` and drive it with a JSON control file named by
 `STUB_CLAUDE_CONTROL`.
 

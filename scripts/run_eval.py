@@ -75,7 +75,7 @@ from scripts.utils import configure_console, parse_skill_md
 # model that opens the command file has demonstrably routed to it.
 TRIGGER_TOOLS = ("Skill", "SlashCommand", "Read")
 
-PROBE_ROOT_PREFIX = "skill-creator-probe-"
+PROBE_ROOT_PREFIX = "better-skill-creator-probe-"
 
 # Rough per-probe cost, USD, used only for the pre-flight projection.
 # Sources: opus measured at $0.4267 and $0.3978 over 16-17 turns
@@ -216,14 +216,14 @@ def claude_argv() -> list[str]:
     makes an npm install work.
 
     Overrides, in order:
-      SKILL_CREATOR_CLAUDE_ARGV  JSON list — used by the test suite to point at
+      BETTER_SKILL_CREATOR_CLAUDE_ARGV  JSON list — used by the test suite to point at
                                  a stub so tests never spend anything.
-      SKILL_CREATOR_CLAUDE_BIN   a single path, for a non-standard install.
+      BETTER_SKILL_CREATOR_CLAUDE_BIN   a single path, for a non-standard install.
     """
-    raw = os.environ.get("SKILL_CREATOR_CLAUDE_ARGV")
+    raw = os.environ.get("BETTER_SKILL_CREATOR_CLAUDE_ARGV")
     if raw:
         return list(json.loads(raw))
-    resolved = os.environ.get("SKILL_CREATOR_CLAUDE_BIN") or shutil.which("claude") or "claude"
+    resolved = os.environ.get("BETTER_SKILL_CREATOR_CLAUDE_BIN") or shutil.which("claude") or "claude"
     if os.name == "nt" and resolved.lower().endswith((".cmd", ".bat")):
         return [os.environ.get("COMSPEC", "cmd.exe"), "/c", resolved]
     return [resolved]
