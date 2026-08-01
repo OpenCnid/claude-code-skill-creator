@@ -3,7 +3,7 @@
 
 Each fixture is a better-skill-creator workspace built to reproduce one documented
 defect. `build(root)` materializes all of them under `root`; running this
-module regenerates the committed copy at `tests/fixtures/workspaces/`.
+module regenerates the committed copy at `tests/fixtures/ws/`.
 
     python -m tests.make_workspace_fixtures
 
@@ -81,7 +81,7 @@ import shutil
 import sys
 from pathlib import Path
 
-FIXTURE_DIR_NAME = "workspaces"
+FIXTURE_DIR_NAME = "ws"
 
 
 # --------------------------------------------------------------------------
@@ -411,7 +411,7 @@ def _primary_only(root: Path) -> None:
     `baseline-only` must not take this with it.
     """
     it = root / "primary-only" / "iteration-1"
-    ev = it / "eval-0-single-configuration"
+    ev = it / "eval-0-single-config"
     write_json(ev / "eval_metadata.json",
                metadata(0, "single-configuration", "the only configuration"))
     run(ev / "with_skill" / "run-1", grading(3, 1), timing(80000, 60.0))
@@ -443,7 +443,7 @@ def _skill_config(root: Path) -> None:
     all, where the identical file under `with_skill/` produced two errors.
     """
     it = root / "skill-config" / "iteration-1"
-    ev = it / "eval-0-primary-named-skill"
+    ev = it / "eval-0-named-skill"
     write_json(ev / "eval_metadata.json",
                metadata(0, "primary-named-skill", "the skill-named prompt"))
     run(ev / "skill" / "run-1", grading(4, 0),
@@ -497,7 +497,7 @@ def _unreachable_grading(root: Path) -> None:
     used to report OK; the benchmark then reported nothing for that run.
     """
     it = root / "unreachable-grading" / "iteration-1"
-    ev = it / "eval-0-misplaced-grading"
+    ev = it / "eval-0-misplaced"
     write_json(ev / "eval_metadata.json",
                metadata(0, "misplaced-grading", "the misplaced prompt"))
     write_json(ev / "grading.json", grading(4, 0))
@@ -522,11 +522,11 @@ def _all_abstained(root: Path) -> None:
     """
     it = root / "all-abstained" / "iteration-1"
 
-    ev0 = it / "eval-0-outside-jurisdiction"
+    ev0 = it / "eval-0-no-jurisdiction"
     write_json(ev0 / "eval_metadata.json",
                metadata(0, "outside-jurisdiction", "produce the report",
                         assertions=["expectation 1", "expectation 2"]))
-    ev1 = it / "eval-1-evidence-never-captured"
+    ev1 = it / "eval-1-no-evidence"
     write_json(ev1 / "eval_metadata.json",
                metadata(1, "evidence-never-captured", "produce the report",
                         assertions=["expectation 1", "expectation 2",
@@ -619,7 +619,7 @@ def _unknown_reason(root: Path) -> None:
     run(ev0 / "with_skill" / "run-1", grading(2, 0), timing(80000, 60.0))
     run(ev0 / "without_skill" / "run-1", grading(1, 1), timing(40000, 30.0))
 
-    ev1 = it / "eval-1-reason-outside-the-enum"
+    ev1 = it / "eval-1-reason-off-enum"
     write_json(ev1 / "eval_metadata.json",
                metadata(1, "reason-outside-the-enum", "produce the report",
                         assertions=["expectation 1", "expectation 2"]))
@@ -637,7 +637,7 @@ def _previous_contract(root: Path) -> None:
     as a generic type error that says nothing about what changed.
     """
     it = root / "previous-contract" / "iteration-1"
-    ev = it / "eval-0-boolean-verdicts"
+    ev = it / "eval-0-bool-verdicts"
     write_json(ev / "eval_metadata.json",
                metadata(0, "boolean-verdicts", "produce the report"))
     run(ev / "with_skill" / "run-1", grading(4, 0, legacy_boolean=True),

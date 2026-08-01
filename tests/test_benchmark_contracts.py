@@ -1101,7 +1101,7 @@ class TestEveryReasonIsDefinedWhereItIsCounted(WorkspaceCase):
             self.assertEqual(block["reasons"]["untyped"], 0, config)
         excluded = [e["path"] for e in data["exclusions"]]
         self.assertTrue(
-            any("eval-1-reason-outside-the-enum" in p for p in excluded),
+            any("eval-1-reason-off-enum" in p for p in excluded),
             excluded)
 
     def test_the_reason_keys_in_the_json_are_the_enum_plus_untyped(self):

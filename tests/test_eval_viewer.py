@@ -158,7 +158,7 @@ class ScriptLiteralEscaping(unittest.TestCase):
 
     def test_generated_page_has_no_stray_script_close(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root = build(Path(tmp)) / "hostile-workspace" / "iteration-1"
+            root = build(Path(tmp)) / "hostile" / "iteration-1"
             runs = gr.find_runs(root)
             benchmark = json.loads((root / "benchmark.json").read_text(encoding="utf-8"))
             html = gr.generate_html(runs, "demo", None, benchmark)
@@ -242,7 +242,7 @@ class AbsentDataIsNotZero(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_missing_timing_json_yields_none_not_zero(self):
-        runs = gr.find_runs(self.root / "hostile-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "hostile" / "iteration-1")
         by_id = {r["id"]: r for r in runs}
         without = by_id["eval-1-summarises-csv-with_skill-run-1"]
         self.assertIsNone(without["timing"])
@@ -250,7 +250,7 @@ class AbsentDataIsNotZero(unittest.TestCase):
         self.assertEqual(withtiming["timing"]["total_tokens"], 1200)
 
     def test_missing_prompt_is_none_not_a_sentinel_string(self):
-        runs = gr.find_runs(self.root / "mixed-eval-id-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "mixed-eval-id" / "iteration-1")
         by_id = {r["id"]: r for r in runs}
         self.assertIsNone(by_id["eval-1-no-metadata-with_skill-run-1"]["prompt"])
         self.assertEqual(by_id["eval-0-has-metadata-with_skill-run-1"]["prompt"],
@@ -270,7 +270,7 @@ class AbsentDataIsNotZero(unittest.TestCase):
         # with the AUTOMATED CHECKS section absent entirely -- indistinguishable
         # from a run with nothing to report, on the screen the reviewer works
         # through. The exclusion was disclosed only on the Benchmark tab.
-        runs = gr.find_runs(self.root / "mixed-eval-id-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "mixed-eval-id" / "iteration-1")
         for run in runs:
             self.assertIsNone(run["grading"])
             self.assertIsNotNone(run["grading_note"], run["id"] + " is silently ungraded")
@@ -288,7 +288,7 @@ class AbsentDataIsNotZero(unittest.TestCase):
         # R10's other half: nothing anywhere compared expectations[].text
         # against eval_metadata.assertions, so the drift that splits rows on the
         # Benchmark tab had no explanation anywhere.
-        runs = gr.find_runs(self.root / "ordering-swap-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "ordering-swap" / "iteration-1")
         for run in runs:
             self.assertIsInstance(run["assertions"], list)
             self.assertIn("Header row present", run["assertions"])
@@ -568,21 +568,21 @@ class LayoutReading(unittest.TestCase):
         # Under the canonical layout the run dir is <config>/run-<K>/ and the
         # metadata lives at the eval-dir root. Checking only run_dir and its
         # parent is what made every prompt read "(No prompt found)".
-        runs = gr.find_runs(self.root / "hostile-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "hostile" / "iteration-1")
         self.assertTrue(runs)
         for run in runs:
             self.assertIsNotNone(run["prompt"], run["id"] + " lost its prompt")
             self.assertIsNotNone(run["eval_id"])
 
     def test_legacy_flat_layout_is_normalized_to_run_1_and_flagged(self):
-        runs = gr.find_runs(self.root / "legacy-flat-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "legacy-flat" / "iteration-1")
         self.assertEqual(len(runs), 2)
         for run in runs:
             self.assertEqual(run["layout"], "legacy-flat")
             self.assertEqual(run["run_number"], 1)
 
     def test_canonical_layout_is_not_flagged(self):
-        runs = gr.find_runs(self.root / "hostile-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "hostile" / "iteration-1")
         for run in runs:
             self.assertEqual(run["layout"], "canonical")
             self.assertEqual(run["run_number"], 1)
@@ -598,7 +598,7 @@ class LayoutReading(unittest.TestCase):
         self.assertIsNotNone(gr.RUN_DIR_RE.match("run-12"))
 
     def test_a_misnamed_run_dir_is_flagged_not_silently_accepted(self):
-        runs = gr.find_runs(self.root / "malformed-run-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "malformed-run" / "iteration-1")
         by_id = {r["id"]: r for r in runs}
         bad = by_id["eval-0-misnamed-run-with_skill-run-final"]
         self.assertEqual(bad["layout"], "malformed-run")
@@ -620,7 +620,7 @@ class LayoutReading(unittest.TestCase):
         # `.get("eval_id", inf)` returns the stored None, so a workspace
         # holding both identified and unidentified evals raised
         # TypeError: '<' not supported between 'NoneType' and 'int'.
-        runs = gr.find_runs(self.root / "mixed-eval-id-workspace" / "iteration-1")
+        runs = gr.find_runs(self.root / "mixed-eval-id" / "iteration-1")
         self.assertEqual(len(runs), 3)
         self.assertEqual(runs[0]["eval_id"], 0)
 
@@ -675,7 +675,7 @@ class Encoding(unittest.TestCase):
         self.assertNotIn(chr(0x2500), source, "the box-drawing banner rule is back")
 
     def test_non_ascii_survives_a_read_and_a_static_write(self):
-        source = self.root / "hostile-workspace" / "iteration-1"
+        source = self.root / "hostile" / "iteration-1"
         runs = gr.find_runs(source)
         benchmark = json.loads((source / "benchmark.json").read_text(encoding="utf-8"))
         html = gr.generate_html(runs, "demo", None, benchmark)
@@ -747,7 +747,7 @@ class ServerBehaviour(unittest.TestCase):
 
     def test_host_and_origin_are_checked(self):
         with tempfile.TemporaryDirectory() as tmp:
-            workspace = build(Path(tmp)) / "hostile-workspace" / "iteration-1"
+            workspace = build(Path(tmp)) / "hostile" / "iteration-1"
             server, port = self._serve(workspace)
             try:
                 good = json.dumps({"reviews": []})
@@ -776,7 +776,7 @@ class ServerBehaviour(unittest.TestCase):
 
     def test_feedback_is_written_as_utf8(self):
         with tempfile.TemporaryDirectory() as tmp:
-            workspace = build(Path(tmp)) / "hostile-workspace" / "iteration-1"
+            workspace = build(Path(tmp)) / "hostile" / "iteration-1"
             server, port = self._serve(workspace)
             try:
                 # run_id must name a run that exists here; see
@@ -823,7 +823,7 @@ class ServerAvailability(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.workspace = (build(Path(self._tmp.name))
-                          / "ordering-swap-workspace" / "iteration-1")
+                          / "ordering-swap" / "iteration-1")
         self.feedback = self.workspace / "feedback.json"
         handler = partial(gr.ReviewHandler, self.workspace, "swap", self.feedback, {}, None)
         self.server = gr.ReviewServer(("127.0.0.1", 0), handler)
@@ -947,7 +947,7 @@ class BenchmarkDiscovery(unittest.TestCase):
         return json.loads(blob[blob.index("{"):].rstrip(";"))
 
     def test_a_benchmark_in_the_workspace_is_found_without_being_named(self):
-        workspace = self.root / "hostile-workspace" / "iteration-1"
+        workspace = self.root / "hostile" / "iteration-1"
         self.assertTrue((workspace / "benchmark.json").is_file())
         html, _ = self._static(workspace)
         data = self._embedded(html)
@@ -955,7 +955,7 @@ class BenchmarkDiscovery(unittest.TestCase):
                       "benchmark.json one directory up from the runs was not discovered")
 
     def test_no_benchmark_anywhere_still_means_no_benchmark_key(self):
-        workspace = self.root / "mixed-eval-id-workspace" / "iteration-1"
+        workspace = self.root / "mixed-eval-id" / "iteration-1"
         self.assertFalse((workspace / "benchmark.json").is_file())
         html, _ = self._static(workspace)
         self.assertNotIn("benchmark", self._embedded(html))
@@ -963,7 +963,7 @@ class BenchmarkDiscovery(unittest.TestCase):
         self.assertIn("No benchmark.json was passed to this viewer", html)
 
     def test_an_explicit_benchmark_still_wins(self):
-        workspace = self.root / "hostile-workspace" / "iteration-1"
+        workspace = self.root / "hostile" / "iteration-1"
         html, _ = self._static(workspace,
                                ["--benchmark", str(workspace / "benchmark-no-roles.json")])
         data = self._embedded(html)
@@ -985,7 +985,7 @@ class ExclusionKinds(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = build(Path(self._tmp.name))
         self.benchmark = json.loads(
-            (self.root / "mixed-exclusions-workspace" / "iteration-1" / "benchmark.json")
+            (self.root / "mixed-exclusions" / "iteration-1" / "benchmark.json")
             .read_text(encoding="utf-8"))
 
     def tearDown(self):
@@ -1106,7 +1106,7 @@ class RefusedPrimaryRole(unittest.TestCase):
 
     def test_the_fixture_records_the_refusal(self):
         data = json.loads(
-            (self.root / "malformed-run-workspace" / "iteration-1" / "benchmark.json")
+            (self.root / "malformed-run" / "iteration-1" / "benchmark.json")
             .read_text(encoding="utf-8"))
         self.assertIn("primary", data)
         self.assertIsNone(data["primary"])
@@ -1373,11 +1373,11 @@ class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.root = build(Path(cls._tmp.name))
         cls.benchmark = json.loads(
-            (cls.root / "abstain-workspace" / "iteration-1" / "benchmark.json")
+            (cls.root / "abstain" / "iteration-1" / "benchmark.json")
             .read_text(encoding="utf-8"))
         cls.legacy_grading = json.loads(
-            (cls.root / "previous-contract-workspace" / "iteration-1"
-             / "eval-0-boolean-verdicts" / "with_skill" / "run-1"
+            (cls.root / "previous-contract" / "iteration-1"
+             / "eval-0-bool-verdicts" / "with_skill" / "run-1"
              / "grading.json").read_text(encoding="utf-8"))
 
     @classmethod
@@ -1502,7 +1502,7 @@ class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
 
     def test_the_grades_panel_gives_abstentions_their_own_visual_state(self):
         grading = json.loads(
-            (self.root / "abstain-workspace" / "iteration-1"
+            (self.root / "abstain" / "iteration-1"
              / "eval-2-both-reasons" / "with_skill" / "run-1" / "grading.json")
             .read_text(encoding="utf-8"))
         html = self._grades_html(grading)
@@ -1516,7 +1516,7 @@ class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
 
     def test_the_grades_panel_says_there_is_no_rate_rather_than_zero(self):
         grading = json.loads(
-            (self.root / "abstain-workspace" / "iteration-1"
+            (self.root / "abstain" / "iteration-1"
              / "eval-0-every-check-abstained" / "with_skill" / "run-1"
              / "grading.json").read_text(encoding="utf-8"))
         html = self._grades_html(grading)
@@ -1528,7 +1528,7 @@ class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
 
     def test_the_grades_summary_line_reports_abstentions(self):
         grading = json.loads(
-            (self.root / "abstain-workspace" / "iteration-1"
+            (self.root / "abstain" / "iteration-1"
              / "eval-1-thin-versus-complete" / "with_skill" / "run-1"
              / "grading.json").read_text(encoding="utf-8"))
         text = self._text(self._grades_html(grading))
@@ -1550,7 +1550,7 @@ class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
         out = self.root.parent / "legacy-out.html"
         result = subprocess.run(
             [sys.executable, str(VIEWER_DIR / "generate_review.py"),
-             str(self.root / "previous-contract-workspace" / "iteration-1"),
+             str(self.root / "previous-contract" / "iteration-1"),
              "--skill-name", "demo", "--static", str(out)],
             capture_output=True, text=True, encoding="utf-8", timeout=120)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -1585,8 +1585,8 @@ class AbstentionReasonTaxonomy(PageScriptHarness, unittest.TestCase):
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
         cls.root = build(Path(cls._tmp.name))
-        cls.workspace = (cls.root / "reason-taxonomy-workspace" / "iteration-1")
-        cls.run_dir = (cls.workspace / "eval-0-four-reason-states"
+        cls.workspace = (cls.root / "reason-taxonomy" / "iteration-1")
+        cls.run_dir = (cls.workspace / "eval-0-four-reasons"
                        / "with_skill" / "run-1")
         cls.benchmark = json.loads(
             (cls.workspace / "benchmark.json").read_text(encoding="utf-8"))

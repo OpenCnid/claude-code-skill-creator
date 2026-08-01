@@ -10,7 +10,7 @@ at and must never be pointed at the committed copy.
 
 Three workspaces, each aimed at a specific defect class:
 
-  hostile-workspace/       Canonical C1 layout carrying every payload the
+  hostile/       Canonical C1 layout carrying every payload the
                            presentation layer used to mishandle: an output file
                            that closes the embedding <script>, grader evidence
                            that closes an HTML attribute, benchmark.json fields
@@ -18,20 +18,20 @@ Three workspaces, each aimed at a specific defect class:
                            and evidence, an expectation with no text, an
                            assertion the two graders worded differently, and one
                            run with no timing.json at all.
-  legacy-flat-workspace/   The pre-C1 layout with no run-<K> level. Must still
+  legacy-flat/   The pre-C1 layout with no run-<K> level. Must still
                            render, and must say out loud that it normalized.
-  mixed-eval-id-workspace/ One eval with metadata, one without, one with a null
+  mixed-eval-id/ One eval with metadata, one without, one with a null
                            eval_id -- the mix that used to raise TypeError in
                            the run sort and produce no viewer at all. Also the
                            ungraded-run case: no grading.json anywhere in it.
-  ordering-swap-workspace/ Two configurations whose graders returned the SAME
+  ordering-swap/ Two configurations whose graders returned the SAME
                            two assertions in OPPOSITE order, with opposite
                            results. Under positional alignment this renders as
                            two rows on which both configurations agree; the
                            truth is that they disagree on both. Also carries a
                            reworded assertion, so the drift disclosure and the
                            ordering fix are exercised on one page.
-  malformed-run-workspace/ A `run-final/` directory: matches the viewer's old
+  malformed-run/ A `run-final/` directory: matches the viewer's old
                            `^run-(.+)$` and not the scripts' `^run-(\\d+)$`, so
                            it appeared here and in no benchmark number. Its
                            benchmark.json is the no-primary-survived state:
@@ -41,7 +41,7 @@ Three workspaces, each aimed at a specific defect class:
   workspace/               entirely, a run that lost only its timing.json, and
                            an eval excluded from the delta but counted in its
                            own configuration's column.
-  abstain-workspace/       Contract C16 end to end. One eval where every check
+  abstain/       Contract C16 end to end. One eval where every check
                            abstained (no pass rate anywhere -- a `0` in any
                            cell is the defect), one where 100% over 2 ruled-on
                            checks sits beside 100% over 11 (the two must not
@@ -192,9 +192,9 @@ def build(target: Path) -> Path:
         w(rel, json.dumps(obj, indent=2, ensure_ascii=False) + "\n")
 
     # =======================================================================
-    # hostile-workspace
+    # hostile
     # =======================================================================
-    base = "hostile-workspace/iteration-1"
+    base = "hostile/iteration-1"
     e0 = base + "/eval-0-emits-html-report"
 
     wj(e0 + "/eval_metadata.json", {
@@ -415,9 +415,9 @@ def build(target: Path) -> Path:
     wj(base + "/benchmark-legacy.json", legacy)
 
     # =======================================================================
-    # legacy-flat-workspace: no run-<K> level
+    # legacy-flat: no run-<K> level
     # =======================================================================
-    flat = "legacy-flat-workspace/iteration-1/eval-0-flat-layout"
+    flat = "legacy-flat/iteration-1/eval-0-flat-layout"
     wj(flat + "/eval_metadata.json", {
         "eval_id": 0, "eval_name": "flat-layout",
         "prompt": "Legacy flat layout probe. " + NONASCII,
@@ -432,9 +432,9 @@ def build(target: Path) -> Path:
         })
 
     # =======================================================================
-    # mixed-eval-id-workspace: identified, unidentified and null-id evals
+    # mixed-eval-id: identified, unidentified and null-id evals
     # =======================================================================
-    mixed = "mixed-eval-id-workspace/iteration-1"
+    mixed = "mixed-eval-id/iteration-1"
     wj(mixed + "/eval-0-has-metadata/eval_metadata.json",
        {"eval_id": 0, "eval_name": "has-metadata", "prompt": "Identified eval."})
     w(mixed + "/eval-0-has-metadata/with_skill/run-1/outputs/a.txt", "a\n")
@@ -444,7 +444,7 @@ def build(target: Path) -> Path:
     w(mixed + "/eval-2-null-id/with_skill/run-1/outputs/c.txt", "c\n")
 
     # =======================================================================
-    # ordering-swap-workspace: the R10 repro
+    # ordering-swap: the R10 repro
     #
     # One eval, two assertions, two configurations. Each configuration was
     # graded by its own sub-agent, and the two sub-agents returned the same two
@@ -466,7 +466,7 @@ def build(target: Path) -> Path:
     CURRENCY = "Currency is formatted"
     CURRENCY_REWORDED = "The currency is formatted"
 
-    swap = "ordering-swap-workspace/iteration-1/eval-0-swapped-order"
+    swap = "ordering-swap/iteration-1/eval-0-swapped-order"
     wj(swap + "/eval_metadata.json", {
         "eval_id": 0,
         "eval_name": "swapped-order",
@@ -493,7 +493,7 @@ def build(target: Path) -> Path:
         wj(swap + "/" + config + "/run-1/timing.json",
            {"total_tokens": 500, "duration_ms": 10000, "total_duration_seconds": 10.0})
 
-    wj("ordering-swap-workspace/iteration-1/benchmark.json", {
+    wj("ordering-swap/iteration-1/benchmark.json", {
         "primary": "with_skill",
         "baseline": "without_skill",
         "metadata": {
@@ -536,22 +536,22 @@ def build(target: Path) -> Path:
     # The same benchmark with run_summary deleted: the viewer must recompute
     # from runs[] and must NOT print a standard deviation for a single sample.
     swap_bench = json.loads(
-        (target / "ordering-swap-workspace/iteration-1/benchmark.json").read_text(encoding="utf-8"))
+        (target / "ordering-swap/iteration-1/benchmark.json").read_text(encoding="utf-8"))
     no_summary = json.loads(json.dumps(swap_bench))
     del no_summary["run_summary"]
-    wj("ordering-swap-workspace/iteration-1/benchmark-no-summary.json", no_summary)
+    wj("ordering-swap/iteration-1/benchmark-no-summary.json", no_summary)
 
     # And with a type-invalid run_summary: mean as a string, mean as null. The
     # viewer must reject the block, fall back, and SAY that it did.
     bad_summary = json.loads(json.dumps(swap_bench))
     bad_summary["run_summary"]["with_skill"]["pass_rate"]["mean"] = "67%"
     bad_summary["run_summary"]["without_skill"]["time_seconds"]["mean"] = None
-    wj("ordering-swap-workspace/iteration-1/benchmark-bad-summary.json", bad_summary)
+    wj("ordering-swap/iteration-1/benchmark-bad-summary.json", bad_summary)
 
     # =======================================================================
-    # malformed-run-workspace: run-final/ instead of run-1/
+    # malformed-run: run-final/ instead of run-1/
     # =======================================================================
-    bad_run = "malformed-run-workspace/iteration-1/eval-0-misnamed-run"
+    bad_run = "malformed-run/iteration-1/eval-0-misnamed-run"
     wj(bad_run + "/eval_metadata.json", {
         "eval_id": 0, "eval_name": "misnamed-run",
         "prompt": "Anything.", "assertions": ["Check A"],
@@ -580,7 +580,7 @@ def build(target: Path) -> Path:
     # aggregation exits non-zero. The viewer must say the comparison is
     # incomplete rather than presenting the baseline as the subject, and must
     # not re-infer a primary that the aggregator explicitly declined to name.
-    wj("malformed-run-workspace/iteration-1/benchmark.json", {
+    wj("malformed-run/iteration-1/benchmark.json", {
         "primary": None,
         "baseline": "without_skill",
         "metadata": {
@@ -630,14 +630,14 @@ def build(target: Path) -> Path:
     })
 
     # =======================================================================
-    # mixed-exclusions-workspace: all three exclusion KINDS on one page
+    # mixed-exclusions: all three exclusion KINDS on one page
     #
     # "Excluded" stopped being one thing. A blanket "excluded from every number
     # on this page" is now false for two of the three, and a reader who sees a
     # run listed as excluded while its pass rate plainly still counts concludes
     # the page is inconsistent when it is being precise.
     # =======================================================================
-    mixed_x = "mixed-exclusions-workspace/iteration-1"
+    mixed_x = "mixed-exclusions/iteration-1"
     for eval_id, slug in ((0, "fully-dropped"), (1, "timing-only"), (2, "unpaired")):
         base_dir = mixed_x + "/eval-%d-%s" % (eval_id, slug)
         wj(base_dir + "/eval_metadata.json", {
@@ -733,7 +733,7 @@ def build(target: Path) -> Path:
     })
 
     # =======================================================================
-    # abstain-workspace: contract C16 end to end
+    # abstain: contract C16 end to end
     #
     # Three shapes on one page, and no two of them may render alike:
     #
@@ -748,7 +748,7 @@ def build(target: Path) -> Path:
     #   eval 2  one abstention of each typed reason, so the two are visible on
     #           screen and distinguishable from each other.
     # =======================================================================
-    ab = "abstain-workspace/iteration-1"
+    ab = "abstain/iteration-1"
 
     ab0_texts = ["Follows the documented ordering of steps",
                  "Handles the malformed row"]
@@ -845,7 +845,7 @@ def build(target: Path) -> Path:
     })
 
     # =======================================================================
-    # reason-taxonomy-workspace: every reason state on one page
+    # reason-taxonomy: every reason state on one page
     #
     # Four states an abstention's reason can be in, and the page must draw four
     # different things:
@@ -872,7 +872,7 @@ def build(target: Path) -> Path:
     # behind the contract, and what it says then is the whole point of the
     # distinction.
     # =======================================================================
-    rt = "reason-taxonomy-workspace/iteration-1"
+    rt = "reason-taxonomy/iteration-1"
     rt_texts = [
         "Emits a CSV file",
         "Totals row is last",
@@ -907,7 +907,7 @@ def build(target: Path) -> Path:
     # the two columns is exactly who needs the reason to be legible.
     rt_baseline = expectations(rt_texts, [True] * 7)
 
-    rt_dir = rt + "/eval-0-four-reason-states"
+    rt_dir = rt + "/eval-0-four-reasons"
     wj(rt_dir + "/eval_metadata.json", {
         "eval_id": 0, "eval_name": "four-reason-states",
         "prompt": "Produce the report.",
@@ -983,7 +983,7 @@ def build(target: Path) -> Path:
     # last version's format. The page must say so and must NOT translate the
     # booleans -- a `false` there means either "verified false" or "could not
     # tell", and picking one is the invention C16 removed.
-    prev = "previous-contract-workspace/iteration-1/eval-0-boolean-verdicts"
+    prev = "previous-contract/iteration-1/eval-0-bool-verdicts"
     wj(prev + "/eval_metadata.json", {
         "eval_id": 0, "eval_name": "boolean-verdicts",
         "prompt": "Task graded before the ternary contract.",
