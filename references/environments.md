@@ -81,6 +81,11 @@ the skill itself is settled and the person agrees it's in good shape.
 `--static <path>` is the reliable path everywhere, and on Windows it is often the *only* one that
 works — the served viewer has more moving parts.
 
+**Don't background the served viewer with `nohup ... &`.** `generate_review.py` blocks, so it has to
+be launched in the background — but `nohup` does not exist on Windows and a trailing `&` is a *parse
+error* in PowerShell, not a background operator. That incantation fails outright for every Windows
+user. Use your harness's own background facility instead, whatever it is.
+
 Don't hardcode how to open a file. `open` is macOS-only, `xdg-open` is Linux, `start` is Windows;
 `python -c "import webbrowser,sys; webbrowser.open(sys.argv[1])" <path>` does the right thing on all
 three. Same for temp paths: `/tmp` does not exist on Windows, so use your harness's scratchpad if it

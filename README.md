@@ -64,7 +64,7 @@ and refuses past `--max-cost`. Each probe runs in its own temporary project root
 version wrote into whatever `.claude/` directory it found by walking upward, which could be your
 project, your home directory, or a drive root.
 
-**Rewritten prompts and documentation.** `SKILL.md` is 18,870 characters and survives compaction
+**Rewritten prompts and documentation.** `SKILL.md` is 18,635 characters and survives compaction
 whole. Six reference files carry the detail, loaded on demand. The sub-agent prompts no longer ship
 worked examples containing finished verdicts, and the blind comparator's blinding is now performed by
 a de-identification step rather than asserted in a sentence.
@@ -79,10 +79,31 @@ actually happened. Run `python -m unittest discover tests` to see the current co
 A skill is a directory. Copy it where Claude looks:
 
 ```bash
-git clone https://github.com/<owner>/better-skill-creator
+git clone https://github.com/OpenCnid/better-skill-creator
+mkdir -p ~/.claude/skills
+rm -rf ~/.claude/skills/better-skill-creator
 cp -r better-skill-creator ~/.claude/skills/better-skill-creator      # personal
-cp -r better-skill-creator .claude/skills/better-skill-creator        # this project
+rm -rf ~/.claude/skills/better-skill-creator/.git
 ```
+
+For a project install, swap `~/.claude/skills` for `.claude/skills` throughout.
+
+PowerShell:
+
+```powershell
+git clone https://github.com/OpenCnid/better-skill-creator
+New-Item -ItemType Directory -Force ~/.claude/skills
+Remove-Item -Recurse -Force ~/.claude/skills/better-skill-creator -ErrorAction SilentlyContinue
+Copy-Item -Recurse better-skill-creator ~/.claude/skills/better-skill-creator
+Remove-Item -Recurse -Force ~/.claude/skills/better-skill-creator/.git
+```
+
+**Both `rm -rf` lines are load-bearing.** The first is the upgrade path: `cp -r src dst` copies
+*into* `dst` when `dst` already exists, so re-running without it leaves the old files in place, nests
+a second copy inside, and exits 0 with no output — you keep running the previous version and the
+directory quietly doubles. The second drops `.git`, which this project's own packager excludes on
+the grounds that it may carry a credentialed remote URL; the copy route has no reason to be laxer
+than the archive route about the same risk.
 
 Claude Code picks it up live — no restart. Then just describe what you want:
 
