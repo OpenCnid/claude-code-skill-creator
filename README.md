@@ -64,7 +64,7 @@ and refuses past `--max-cost`. Each probe runs in its own temporary project root
 version wrote into whatever `.claude/` directory it found by walking upward, which could be your
 project, your home directory, or a drive root.
 
-**Rewritten prompts and documentation.** `SKILL.md` is 18,870 characters and survives compaction
+**Rewritten prompts and documentation.** `SKILL.md` is 18,635 characters and survives compaction
 whole. Six reference files carry the detail, loaded on demand. The sub-agent prompts no longer ship
 worked examples containing finished verdicts, and the blind comparator's blinding is now performed by
 a de-identification step rather than asserted in a sentence.
@@ -79,7 +79,8 @@ actually happened. Run `python -m unittest discover tests` to see the current co
 A skill is a directory. Copy it where Claude looks:
 
 ```bash
-git clone https://github.com/<owner>/better-skill-creator
+git clone https://github.com/OpenCnid/better-skill-creator
+mkdir -p ~/.claude/skills
 cp -r better-skill-creator ~/.claude/skills/better-skill-creator      # personal
 cp -r better-skill-creator .claude/skills/better-skill-creator        # this project
 ```
