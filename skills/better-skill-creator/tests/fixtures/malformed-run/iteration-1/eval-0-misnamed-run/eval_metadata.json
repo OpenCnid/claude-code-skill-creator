@@ -1,8 +1,0 @@
-{
-  "eval_id": 0,
-  "eval_name": "misnamed-run",
-  "prompt": "Anything.",
-  "assertions": [
-    "Check A"
-  ]
-}
