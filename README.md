@@ -48,7 +48,8 @@ error and excluded from the denominator, not counted as a clean negative.
 
 **One canonical workspace layout**, agreed on by the workflow, the aggregator, the viewer, and the
 grading validator — which previously disagreed with each other in ways that produced silent zeros.
-Plus `scripts/preflight.py`, which checks the layout *before* you spend anything on sub-agent runs.
+Plus `skills/better-skill-creator/scripts/preflight.py`, which checks the layout *before* you spend
+anything on sub-agent runs.
 
 **Target-aware validation.** There is no single frontmatter spec: Claude Code recognizes 31 keys and
 ignores unknown ones, the portable agentskills.io set is 6, and claude.ai caps descriptions at 200
@@ -72,7 +73,8 @@ a de-identification step rather than asserted in a sentence.
 **Validated in a clean room.** See [VALIDATION.md](VALIDATION.md) — 13/13 on held-out ground built by agents who never saw the panel, key-verified by a second blind reader, against a 46% baseline. The panel beat every seat that composed it.
 
 **A test suite**, most of it derived from the reproductions above — each fixture is a defect that
-actually happened. Run `python -m unittest discover tests` to see the current count.
+actually happened. Run `python -m unittest discover tests` from `skills/better-skill-creator/` to see
+the current count.
 
 ## Install
 
@@ -82,8 +84,7 @@ A skill is a directory. Copy it where Claude looks:
 git clone https://github.com/OpenCnid/better-skill-creator
 mkdir -p ~/.claude/skills
 rm -rf ~/.claude/skills/better-skill-creator
-cp -r better-skill-creator ~/.claude/skills/better-skill-creator      # personal
-rm -rf ~/.claude/skills/better-skill-creator/.git
+cp -r better-skill-creator/skills/better-skill-creator ~/.claude/skills/better-skill-creator   # personal
 ```
 
 For a project install, swap `~/.claude/skills` for `.claude/skills` throughout.
@@ -94,16 +95,16 @@ PowerShell:
 git clone https://github.com/OpenCnid/better-skill-creator
 New-Item -ItemType Directory -Force ~/.claude/skills
 Remove-Item -Recurse -Force ~/.claude/skills/better-skill-creator -ErrorAction SilentlyContinue
-Copy-Item -Recurse better-skill-creator ~/.claude/skills/better-skill-creator
-Remove-Item -Recurse -Force ~/.claude/skills/better-skill-creator/.git
+Copy-Item -Recurse better-skill-creator/skills/better-skill-creator ~/.claude/skills/better-skill-creator
 ```
 
-**Both `rm -rf` lines are load-bearing.** The first is the upgrade path: `cp -r src dst` copies
-*into* `dst` when `dst` already exists, so re-running without it leaves the old files in place, nests
-a second copy inside, and exits 0 with no output — you keep running the previous version and the
-directory quietly doubles. The second drops `.git`, which this project's own packager excludes on
-the grounds that it may carry a credentialed remote URL; the copy route has no reason to be laxer
-than the archive route about the same risk.
+**The `rm -rf` line is load-bearing.** It is the upgrade path: `cp -r src dst` copies *into* `dst`
+when `dst` already exists, so re-running without it leaves the old files in place, nests a second
+copy inside, and exits 0 with no output — you keep running the previous version and the directory
+quietly doubles. Copying `skills/better-skill-creator` rather than the clone root is what keeps
+`.git` out of the installed copy: this project's own packager excludes `.git` on the grounds that it
+may carry a credentialed remote URL, and the copy route has no reason to be laxer than the archive
+route about the same risk.
 
 Claude Code picks it up live — no restart. Then just describe what you want:
 
@@ -120,16 +121,17 @@ Two consequences worth knowing:
   called `skill-creator` **and** change the frontmatter `name` to match. Changing only one of them
   gets you a skill that answers to a name its own file doesn't state.
 - `package_skill` refuses to build an archive when the directory and the frontmatter `name` disagree.
-  They agree here, so you can package straight from the clone root.
+  They agree here, so you can package straight from `skills/better-skill-creator/`.
 
 ## Requirements
 
-- Python 3.10+ and PyYAML (`pip install -r requirements.txt`)
+- Python 3.10+ and PyYAML (`pip install -r skills/better-skill-creator/requirements.txt`)
 - The `claude` CLI, for description-triggering optimization only — everything else works without it
 
 ## Running the tests
 
 ```bash
+cd skills/better-skill-creator
 python -m unittest discover tests
 ```
 

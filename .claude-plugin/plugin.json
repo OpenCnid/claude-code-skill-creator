@@ -1,0 +1,12 @@
+{
+  "name": "better-skill-creator",
+  "description": "Use this skill for anything to do with authoring, fixing, or measuring Claude skills.",
+  "version": "0.1.0",
+  "author": {
+    "name": "OpenCnid Labs",
+    "url": "https://github.com/OpenCnid"
+  },
+  "homepage": "https://github.com/OpenCnid/better-skill-creator",
+  "repository": "https://github.com/OpenCnid/better-skill-creator",
+  "license": "Apache-2.0"
+}

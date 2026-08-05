@@ -12,6 +12,11 @@ from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parent.parent
 
+# The skill ships at <repo>/skills/better-skill-creator/ so Claude Code's plugin loader
+# auto-discovers it via the skills/*/SKILL.md glob. README, LICENSE.txt and NOTICE are
+# repository furniture and stay at the repository root, two levels above the skill root.
+REPO_ROOT = SKILL_ROOT.parent.parent
+
 # Claude Code re-attaches roughly the first 19,900 CHARACTERS of an invoked skill after
 # compaction. It is a raw slice: it cuts mid-sentence, with no marker, and the model cannot
 # tell it happened. Characters, not bytes -- `wc -c` over-reports on non-ASCII content.
@@ -102,7 +107,7 @@ class FrontmatterObeysItsOwnRules(unittest.TestCase):
         self.assertIsNotNone(m)
         name = m.group(1)
 
-        readme = read(SKILL_ROOT / "README.md")
+        readme = read(REPO_ROOT / "README.md")
         self.assertRegex(
             readme,
             rf"skills/{re.escape(name)}\b",
@@ -212,10 +217,10 @@ class ProvenanceIsIntact(unittest.TestCase):
 
     def test_license_and_notice_present(self):
         for name in ("LICENSE.txt", "NOTICE"):
-            self.assertTrue((SKILL_ROOT / name).is_file(), f"{name} is missing")
+            self.assertTrue((REPO_ROOT / name).is_file(), f"{name} is missing")
 
     def test_notice_names_the_upstream_and_disclaims_affiliation(self):
-        notice = read(SKILL_ROOT / "NOTICE")
+        notice = read(REPO_ROOT / "NOTICE")
         self.assertIn("anthropics/skills", notice)
         self.assertIn("Apache", notice)
         self.assertRegex(
