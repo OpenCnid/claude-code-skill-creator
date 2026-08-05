@@ -35,7 +35,7 @@ path *is* a link was a proxy, and the proxy missed: ``Path.is_symlink()``
 returns False for an NTFS directory junction, junctions need no elevation to
 create (``mklink /J``), and ``os.walk(followlinks=False)`` walks straight
 through one - so two files from outside the skill tree shipped silently
-(research/V2-verification.md, R29a). A path that resolves outside the folder is
+(research/_REMEDIATION.md R29a). A path that resolves outside the folder is
 never opened, never descended into, and is named in the report. A link that
 resolves *inside* the folder is skipped too, because its target already ships
 under its real name; that also makes a junction loop impossible.

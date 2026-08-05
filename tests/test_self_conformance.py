@@ -141,6 +141,39 @@ class EveryPointerResolves(unittest.TestCase):
         ]
         self.assertEqual(missing, [], f"SKILL.md names modules that do not exist: {missing}")
 
+    def test_no_pointer_to_a_document_that_does_not_ship(self):
+        """The guard above covers SKILL.md only, which is how 176 citations to a
+        contract file and a research tree survived into shipped bytes -- 81 of
+        them into the archive, two into prompts a sub-agent reads at runtime.
+        A dead pointer is worse in those files than in SKILL.md, not better:
+        a cold sub-agent cannot ask what it meant."""
+        patterns = {
+            "contract C<n>": re.compile(r"contract C\d+"),
+            "research/": re.compile(r"research/[A-Za-z0-9_.-]+"),
+        }
+        offenders = []
+        for path in sorted(SKILL_ROOT.rglob("*")):
+            if not path.is_file() or path.suffix not in {".md", ".py", ".html"}:
+                continue
+            rel = path.relative_to(SKILL_ROOT).as_posix()
+            # Scoped to what ships. package_skill's ROOT_EXCLUDE_DIRS drops these,
+            # so a citation inside them never reaches a reader of the archive.
+            if rel.startswith(("tests/", "evals/")):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for label, rx in patterns.items():
+                hits = sorted(set(rx.findall(text)))
+                if hits:
+                    offenders.append(f"{rel}: {label} -> {hits[:3]}")
+        self.assertEqual(
+            offenders, [],
+            "citations to material this repository does not ship:\n  "
+            + "\n  ".join(offenders),
+        )
+
     def test_long_references_have_a_table_of_contents(self):
         offenders = []
         for path in sorted((SKILL_ROOT / "references").glob("*.md")):
