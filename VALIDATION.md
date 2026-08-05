@@ -72,7 +72,7 @@ Recorded because the failures shaped the design more than the successes did.
 **Two earlier runs were invalidated by their own audit.** Seats were rendered by hand and handed
 byte-identical evidence, plus a sentence asking each to respect its own allowlist. That converts
 isolation into a promise, and puts an instruction inside the one section a seat is told is never
-instruction. A seat whose inputs declared a file withheld cited that file. → `scripts/render_seats.py`
+instruction. A seat whose inputs declared a file withheld cited that file. → `skills/better-skill-creator/scripts/render_seats.py`
 now binds each seat's allowlist to real paths, refuses rather than falling back, and emits a record of
 what each seat received.
 
@@ -89,6 +89,7 @@ findings were partitioned. Naming a file `SEALED` is not a mechanism.
 
 ## Reproducing it
 
-Everything is in the bundle: `agents/panel/`, `scripts/gate_panel.py`, `scripts/render_seats.py`,
-`references/grading-panel.md`. The run itself is the six steps in that reference. `python -m unittest
-discover tests` covers the contracts.
+Everything is in the bundle under `skills/better-skill-creator/`: `agents/panel/`,
+`scripts/gate_panel.py`, `scripts/render_seats.py`, `references/grading-panel.md`. The run itself is
+the six steps in that reference. From that directory, `python -m unittest discover tests` covers the
+contracts.
