@@ -21,7 +21,7 @@ Nothing here spends money. Two seams are used, both of them real code paths:
 
 The CLI cases go further and run `python -m scripts.run_loop` as a subprocess
 with **stdin from DEVNULL**, which is the configuration that used to kill the
-run outright (contract C14).
+run outright.
 """
 
 from __future__ import annotations

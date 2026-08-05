@@ -42,7 +42,7 @@ exactly the four sections rendered from the frame below and nothing else.
 6. **A seat return the composition absorbs still reaches the record.** The composed verdict summarizes
    the seat returns; it does not replace them. On a measured run eleven seats abstained and the
    composed verdicts carried one — the other ten left no trace, and nothing errored, because
-   absorption is not a malformed file. C16 introduced abstention so a rate could be read against the
+   absorption is not a malformed file. Abstention exists so a rate can be read against the
    count of things nobody could rule on, and a record holding only the abstentions that happened to
    survive composition reports that count as a ninth of itself, confidently. Every seat abstention goes
    into `expectations[].seatAbstentions` whether or not it reached the item verdict.
@@ -171,8 +171,8 @@ converts the allowlist back into a promise, and it puts an instruction inside th
 `<identity>` tells the seat is never instruction. The breach was demonstrable: run 1's grounding
 `inputs` declared the producing agent's prose note *withheld from this seat by design*, the note files
 sat in the directories it was pointed at, and its return cited one of them. The orchestrator who did
-that was following this paragraph and got it wrong anyway — which is the argument that put the C17
-gates in `gate_panel.py` rather than in prose, and it applies here identically.
+that was following this paragraph and got it wrong anyway — which is the argument that put the
+instantiation gates in `gate_panel.py` rather than in prose, and it applies here identically.
 
 ```
 python -m scripts.render_seats <composition> --evals <evals.json> \
@@ -308,7 +308,7 @@ tested, and is wrong. On one item grounding abstained on jurisdiction and both o
 passed; grounding-only turns a correct `pass` into an `abstain` and scores 12/15 where gate 2 scores
 13/15. The defect is not *which* seat ruled — it is *how many declined*.
 
-### Write `grading.json` per C16
+### Write `grading.json` with ternary verdicts
 
 ```json
 {
@@ -368,7 +368,7 @@ composed verdict is a lossy summary.
 
 - **Always emit the key**, as `[]` when no seat abstained. `[]` means nobody abstained; the key
   *absent* means the writer did not record it. Omitting it when empty collapses those two into one
-  byte and a consumer then reads "not recorded" as zero — the same C4 error as rendering an unknown
+  byte and a consumer then reads "not recorded" as zero — the same error as rendering an unknown
   measurement as `0`.
 - `seat` is a name from `panel.seats`. `abstainReason` is that seat's own typed reason, verbatim,
   never the composed one — a seat that said `underspecified` on an item whose composed reason came out
@@ -391,10 +391,10 @@ it; `false` otherwise, including on every `fail` and every `abstain`. Always pre
   statement is true. Do not net it out, do not move it to `abstained`, do not invent a fourth verdict
   — all three would break `passed + failed + abstained == total` or restate one fact in two places,
   and both are gated. The flag plus `summary.vacuous_passes` is what lets a reader discount it, by
-  exactly the argument C16 makes for abstentions: a 100% pass rate over eleven expectations where
+  exactly the argument that applies to abstentions: a 100% pass rate over eleven expectations where
   three passed vacuously is a different result from 100% over eleven that did not, and the artifact
   must not render them alike.
-- This is how C18's fourth criterion is met without lying about a true statement. *"A universal or
+- This is how the vacuity criterion is met without lying about a true statement. *"A universal or
   negative claim must not pass against an empty artifact"* is aimed at vacuous satisfaction being
   **counted as evidence the skill worked**, and that is what the flag and the count prevent. Read
   instead as "return `fail`", it demands a false report on a true statement — which is what happened,
@@ -409,7 +409,7 @@ boolean was not: an aggregate over a set is not a second copy of a per-item fact
 `summary.abstained` counts **expectations**; `summary.seat_abstained` counts **seat returns**. They
 are different units over the same run and they will not agree — on the run this rule was measured
 against, `abstained` is 2 and `seat_abstained` is 11. Anything that makes them agree has lost the
-signal C16 asked for.
+signal the two counts exist to carry.
 
 **What the downstream scripts have to do.** `expectations[]` is already carried through whole by
 `aggregate_benchmark.py` and already walked per-entry for `abstainReason`, so `seatAbstentions` and

@@ -39,7 +39,7 @@ suggestions — patterns, anomalies, and the things an average conceals.
    `tests/test_benchmark_contracts.py`. Read the seven keys above; there is no eighth, and a note
    reporting one as unmeasured is a finding about a measurement that does not exist.
 
-3. **`pass_rate` is `passed / (passed + failed)` and can legitimately be `null`** (contract C16).
+3. **`pass_rate` is `passed / (passed + failed)` and can legitimately be `null`.**
    Verdicts are ternary — `pass`, `fail`, `abstain` — and an abstention is a check the judge declined
    to rule on, tagged `jurisdiction` (outside what it could rule on) or `evidence` (in scope, but the
    run did not produce what a ruling needed). Abstentions are in neither side of the rate. A run whose

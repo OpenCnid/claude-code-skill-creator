@@ -216,7 +216,7 @@ class GraderRequiredBlocksTest(unittest.TestCase):
 
         All three verdicts appear, because a substitution that only ever used
         `pass` and `fail` would keep passing if the prompt lost `abstain`
-        entirely - which is the field contract C16 exists to add.
+        entirely - which is the field the ternary vocabulary exists to add.
         """
         block = json.loads(json.dumps(self.full))
         block["expectations"] = [
@@ -269,7 +269,7 @@ class GraderRequiredBlocksTest(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
-# 3a. grader.md says the three things contract C16 requires it to say
+# 3a. grader.md says the three things the ternary vocabulary requires
 # --------------------------------------------------------------------------
 
 class GraderTernaryVocabularyTest(unittest.TestCase):
@@ -418,7 +418,7 @@ class SchemaExamplesValidateTest(unittest.TestCase):
         self.assertIn(
             "abstention", summary,
             "references/schemas.md's benchmark example has no `abstention` "
-            "block; contract C16 requires the counts beside every rate")
+            "block; the counts must sit beside every rate")
 
 
 # --------------------------------------------------------------------------
@@ -592,7 +592,7 @@ class AnalyzerBenchmarkKeysTest(unittest.TestCase):
 class AbstentionTypingProcedureTest(unittest.TestCase):
     """Three reasons over an unstated boundary collect habits, not facts.
 
-    Contract C16 names three typed abstention reasons. The definitions alone do
+    There are three typed abstention reasons. The definitions alone do
     not separate them - "outside what this judge can rule on" and "no judge
     could rule" are both true of a great many statements, so a judge picking the
     closest-sounding description picks by temperament and two judges split the

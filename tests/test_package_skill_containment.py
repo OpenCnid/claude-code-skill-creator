@@ -21,7 +21,7 @@ R29b  The exclusion rule was ``name.startswith(".env")``, so ``production.env``,
 R32a  A lowercase ``skill.md`` validated clean and then could not be packaged.
 R32b  An archive over the documented 30 MB ceiling reported success.
 
-Contract C13 is what these assert: containment, not link-detection, and
+These assert containment, not link-detection, and
 exclusions that match patterns and categories rather than filename prefixes.
 
 The hostile decoration (junction, symlinks, hard link, credential-shaped files)

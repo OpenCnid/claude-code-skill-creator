@@ -3,17 +3,17 @@
 Derived from ``anthropics/skills``, ``skills/skill-creator/scripts/utils.py``
 (Apache-2.0 -- see LICENSE.txt).
 
-Three contracts shape this module.
+Three invariants shape this module.
 
-**C12 (one severity table).** ``WORKSPACE_CONDITIONS`` and
-:func:`classify_workspace_condition` are contract C12's severity table written
-down once. ``scripts.preflight``, ``scripts.validate_grading`` and
-``scripts.aggregate_benchmark`` all import them; none of the three decides a
-severity for itself, because when they did, one flat-layout workspace drew
-three different verdicts.
+**One severity table.** ``WORKSPACE_CONDITIONS`` and
+:func:`classify_workspace_condition` are the severity table for workspace
+conditions, written down once. ``scripts.preflight``,
+``scripts.validate_grading`` and ``scripts.aggregate_benchmark`` all import
+them; none of the three decides a severity for itself, because when they did,
+one flat-layout workspace drew three different verdicts.
 
-**C7 (encoding).** Every read here names its encoding. ``SKILL.md`` is decoded
-from bytes as ``utf-8-sig``, never through ``Path.read_text()``'s
+**Explicit encoding.** Every read here names its encoding. ``SKILL.md`` is
+decoded from bytes as ``utf-8-sig``, never through ``Path.read_text()``'s
 locale-dependent default: on a stock Windows install that default is cp1252,
 where a UTF-8 ``SKILL.md`` either raises (bytes 0x81/0x8D/0x8F/0x90/0x9D are
 undefined in cp1252 -- one closing curly quote is enough) or, worse, decodes
@@ -113,7 +113,7 @@ _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
 # --------------------------------------------------------------------------
-# Contract C12 -- severity belongs to the condition, not to the component
+# One severity table -- severity belongs to the condition, not the component
 # --------------------------------------------------------------------------
 #
 # Verification pointed ``scripts.preflight``, ``scripts.validate_grading`` and
@@ -123,7 +123,7 @@ _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 # rewritten to eliminate, reintroduced because each component computed the
 # judgment for itself and was therefore free to choose differently.
 #
-# ``WORKSPACE_CONDITIONS`` is contract C12's severity table, transcribed once.
+# ``WORKSPACE_CONDITIONS`` is that severity table, written down exactly once.
 # Every component imports it; no component re-derives it. What a component
 # *does* with a severity remains its own business -- ``preflight`` refuses to
 # green-light a workspace the readers merely warn about, because it is a
@@ -135,14 +135,15 @@ _FENCE_LINE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 # reading three implementations. ``tests/test_condition_classifier.py`` does
 # exactly that.
 #
-# Adding a condition here is a contract change: add the row to _CONTRACT.md's
-# C12 table first, then here. Never classify a condition inside a component.
+# Adding a condition changes what all three components report, so add its row
+# to ``WORKSPACE_CONDITIONS`` below and nowhere else. Never classify a
+# condition inside a component.
 
 SEVERITY_OK = "ok"
 SEVERITY_WARNING = "warning"
 SEVERITY_ERROR = "error"
 
-#: Contract C12 condition identifiers. These strings are printed by all three
+#: Workspace condition identifiers. These strings are printed by all three
 #: components and are matched by tooling and tests; do not rename casually.
 CANONICAL_LAYOUT_OK = "canonical_layout"
 LEGACY_FLAT_LAYOUT = "legacy_flat_layout"
@@ -158,15 +159,15 @@ UNPAIRED_EVALS = "unpaired_evals"
 WORKSPACE_CONDITIONS = {
     CANONICAL_LAYOUT_OK: (
         SEVERITY_OK,
-        "the workspace is in the canonical contract-C1 layout",
+        "the workspace is in the canonical <config>/run-<K>/ layout",
         "-",
     ),
     LEGACY_FLAT_LAYOUT: (
         SEVERITY_WARNING,
         "legacy flat layout: grading.json sits directly in the configuration "
-        "directory, with no run-<K> level. Contract C1 requires a run level "
-        "even for a single run; readers normalize it to run-1 and aggregate it "
-        "correctly",
+        "directory, with no run-<K> level. The canonical layout requires a run "
+        "level even for a single run; readers normalize it to run-1 and "
+        "aggregate it correctly",
         "it aggregates correctly; refusing would be wrong",
     ),
     FLAT_AND_RUN_DIRS: (
@@ -193,7 +194,7 @@ WORKSPACE_CONDITIONS = {
     ),
     UNPAIRED_EVALS: (
         SEVERITY_ERROR,
-        # Both forms of the same defect. The eval-level form is _CONTRACT.md's
+        # Both forms of the same defect. The eval-level form is the original
         # wording ("evals present in one config and not its counterpart"); the
         # run-level form is that defect in different clothes, found when a
         # near-miss field name excluded one run and the delta moved from +0.50
@@ -209,28 +210,30 @@ WORKSPACE_CONDITIONS = {
 
 
 class UnknownWorkspaceCondition(KeyError):
-    """A component asked for a severity contract C12 does not define.
+    """A component asked for a severity the shared table does not define.
 
     Raised rather than defaulted. A default here would be a component deciding
-    a severity locally, which is the exact failure C12 exists to close.
+    a severity locally, which is the exact failure the shared table closes.
     """
 
 
 def classify_workspace_condition(condition: str) -> dict:
-    """Contract C12's severity table -- the one implementation of it.
+    """The workspace-condition severity table -- the one implementation of it.
 
     Returns ``{"condition", "severity", "statement", "rationale", "tag"}``.
     Raises :class:`UnknownWorkspaceCondition` for anything not in the table: a
-    new condition gets a row in _CONTRACT.md's C12 table first, and is never
+    new condition gets a row in ``WORKSPACE_CONDITIONS`` above, and is never
     classified inside a component.
     """
     try:
         severity, statement, rationale = WORKSPACE_CONDITIONS[condition]
     except KeyError:
         raise UnknownWorkspaceCondition(
-            f"{condition!r} is not in contract C12's severity table. Add the "
-            f"row to _CONTRACT.md first; a component must not decide a severity "
-            f"locally. Known conditions: "
+            f"{condition!r} is not in the shared severity table. Add a row to "
+            f"WORKSPACE_CONDITIONS in scripts/utils.py first; a component must "
+            f"not decide a severity locally, because three components deciding "
+            f"separately is how one workspace drew three different verdicts. "
+            f"Known conditions: "
             f"{', '.join(sorted(WORKSPACE_CONDITIONS))}"
         ) from None
     return {
@@ -243,7 +246,7 @@ def classify_workspace_condition(condition: str) -> dict:
 
 
 def condition_severity(condition: str) -> str:
-    """The contract-C12 severity of *condition*."""
+    """The shared-table severity of *condition*."""
     return classify_workspace_condition(condition)["severity"]
 
 
@@ -367,7 +370,7 @@ def read_text_utf8(path: Path) -> str:
     except UnicodeDecodeError as exc:
         # Note: UnicodeDecodeError is a UnicodeError/ValueError, NOT an
         # OSError -- an ``except (json.JSONDecodeError, OSError)`` handler
-        # elsewhere will not catch it (contract C7).
+        # elsewhere will not catch it.
         raise SkillMdError(
             f"{path.name} is not saved as UTF-8 text ({exc.reason} at byte "
             f"{exc.start}), so it cannot be read. Re-save the file as UTF-8: in "

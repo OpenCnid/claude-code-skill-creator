@@ -17,16 +17,16 @@ Fixture             Reproduces
 repro-flat          research/00-orchestrator-repro.md - two configs graded
                     4/4 in the layout SKILL.md documented, which aggregated
                     to `Delta: +0.00` over an empty runs array, exit 0.
-canonical           The contract-C1 layout, two runs per configuration.
+canonical           The canonical layout, two runs per configuration.
                     Anchors the statistics, which were verified correct and
                     must stay that way.
 inverted-delta      research/14-workflow-design.md F2 - `old_skill` sorts
                     before `with_skill`, so a +0.75 improvement printed as
                     -0.75.
-missing-timing      research/14 F4 / contract C4 - an unmeasured duration
-                    rendered as 0.0s and was averaged in as a measurement.
-pass-rate-string    contract C3 - `pass_rate` must be a number in [0,1]. A
-                    string used to flow straight through aggregation.
+missing-timing      research/14 F4 - an unmeasured duration rendered as 0.0s
+                    and was averaged in as a measurement.
+pass-rate-string    `pass_rate` must be a number in [0,1]. A string used to
+                    flow straight through aggregation.
 summary-failed      research/11 F13.2 - `summary.failed` was never
                     cross-checked, so "1 passed, 0 failed of 3" validated
                     clean over three expectations.
@@ -45,8 +45,8 @@ unpaired-evals      research/V1 N3 / R7 - eval-1 ran only under `with_skill`,
                     and its 100% became the whole of a `+0.50 better` delta.
 baseline-only       R7, third scale - `with_skill` produced nothing, so the
                     surviving baseline was relabelled `[primary]` at exit 0.
-primary-only        Contract C5's legitimate single-configuration record,
-                    which the baseline-only fix must not break.
+primary-only        The legitimate single-configuration record, which the
+                    baseline-only fix must not break.
 bad-timing          research/V1 N1 / R5 - a negative duration and negative
                     token count, rendered as `-3600.0s | better` at exit 0.
 skill-config        research/V1 N2 / R6 - a configuration directory named
@@ -57,21 +57,20 @@ flat-and-run        research/V1 N4 / R8 - a configuration holding both a flat
                     discarded and the validator claimed it was normalized.
 duplicate-keys      research/V1 N5 / R9 - two eval directories declaring
                     eval_id 0, and `run-1` beside `run-01`.
-all-abstained       contract C16 - every expectation in every run abstained,
-                    so there is no pass rate anywhere. A `0` in any cell of
-                    any artifact is the defect.
-partly-abstained    contract C16 - 100% over 2 ruled-on checks and 9
-                    abstentions beside 100% over 11, which must not render
-                    alike.
-every-reason        contract C16 - every typed abstention reason in one
-                    workspace, including `underspecified`, which the markdown
-                    legend counted and did not define. One config also carries
+all-abstained       every expectation in every run abstained, so there is no
+                    pass rate anywhere. A `0` in any cell of any artifact is
+                    the defect.
+partly-abstained    100% over 2 ruled-on checks and 9 abstentions beside
+                    100% over 11, which must not render alike.
+every-reason        every typed abstention reason in one workspace,
+                    including `underspecified`, which the markdown legend
+                    counted and did not define. One config also carries
                     a run whose grading uses a reason outside the enum: it is
                     schema-invalid, so it must be excluded and named rather
                     than counted as `untyped` in a surviving column.
-previous-contract   contract C16 - grading.json in the retired boolean shape,
-                    which must be diagnosed as the previous contract with a
-                    migration rather than as a type error.
+previous-contract   grading.json in the retired boolean shape, which must be
+                    diagnosed as the previous contract with a migration
+                    rather than as a type error.
 """
 
 from __future__ import annotations
@@ -97,7 +96,7 @@ def grading(passed: int, failed: int, abstained: int = 0, *, pass_rate=None,
             summary_failed=None, texts=None, timing_block=False,
             execution_metrics=None, abstain_reasons=None,
             legacy_boolean=False) -> dict:
-    """A contract-C3/C16 grading.json, with hooks for building malformed ones.
+    """A well-formed grading.json, with hooks for building malformed ones.
 
     Verdicts are ternary: `passed` entries come first, then `failed`, then
     `abstained`. `pass_rate` is `passed / (passed + failed)` and is **None**
@@ -212,7 +211,7 @@ def _repro_flat(root: Path) -> None:
 
 
 def _canonical(root: Path) -> None:
-    """Contract C1 exactly. Two runs per configuration.
+    """The canonical layout exactly. Two runs per configuration.
 
     Hand-computed: with_skill pass rates [1.0, 0.75] -> mean 0.875,
     n-1 stddev sqrt(0.03125) = 0.1768; times [60.0, 70.0] -> 65.0 +/- 7.0711;
@@ -405,7 +404,7 @@ def _baseline_only(root: Path) -> None:
 def _primary_only(root: Path) -> None:
     """The mirror image, which is legitimate and must stay legitimate.
 
-    Contract C5: `baseline` is null when only one configuration produced usable
+    `baseline` is null when only one configuration produced usable
     runs, the delta is absent, and nothing is invented. Recorded as a clean
     pass in research/V1-verification.md and research/V5; the fix for
     `baseline-only` must not take this with it.
@@ -506,7 +505,7 @@ def _unreachable_grading(root: Path) -> None:
 
 
 def _all_abstained(root: Path) -> None:
-    """Contract C16 - every expectation in every run abstained.
+    """Every expectation in every run abstained.
 
     The end-to-end repro for the rule that a rate over nothing is null and not
     zero. Both configurations ran, both were graded, and neither judge could
@@ -544,7 +543,7 @@ def _all_abstained(root: Path) -> None:
 
 
 def _partly_abstained(root: Path) -> None:
-    """Contract C16 - a high rate over a small ruled-on fraction.
+    """A high rate over a small ruled-on fraction.
 
     `with_skill` passes both checks it was ruled on and abstains on nine, so
     its pass rate is 100%. `without_skill` is ruled on all eleven and passes
@@ -564,7 +563,7 @@ def _partly_abstained(root: Path) -> None:
 
 
 def _every_reason(root: Path) -> None:
-    """Contract C16 - all three typed reasons in one workspace.
+    """All three typed reasons in one workspace.
 
     `underspecified` was added to the enum after `benchmark.md`'s legend was
     written, and the legend was a hand-written sentence naming two reasons
@@ -632,9 +631,9 @@ def _unknown_reason(root: Path) -> None:
 def _previous_contract(root: Path) -> None:
     """The PREVIOUS grading contract - a boolean `passed`, no `abstained`.
 
-    Not malformed, just last version's format. Contract C16 requires that this
-    be diagnosed by name with the migration spelled out, rather than reported
-    as a generic type error that says nothing about what changed.
+    Not malformed, just last version's format. This must be diagnosed by name
+    with the migration spelled out, rather than reported as a generic type
+    error that says nothing about what changed.
     """
     it = root / "previous-contract" / "iteration-1"
     ev = it / "eval-0-bool-verdicts"

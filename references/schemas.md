@@ -409,7 +409,7 @@ nothing to do with the skill. Add a transcript-only assertion and the rate drops
 next iteration and it rises. Nothing about the skill changed either time.
 
 So the rate is computed over the ruled-on set, and the abstentions are reported **beside** it rather
-than folded into it. This is the same rule as C4's `—` for a missing `timing.json`, applied one level
+than folded into it. This is the same rule as the `—` for a missing `timing.json`, applied one level
 in: absent data stays absent instead of being substituted with a number that renders as a legitimate
 measurement.
 
@@ -745,7 +745,7 @@ rather than inferred by whatever draws the table. When either side has no usable
   **`abstention` is deliberately not a delta metric and carries no polarity.** Every other metric
   declares which direction is better ([below](#comparison-direction)); abstention has no honest answer.
   A judge that abstains freely produces a benchmark measuring nothing while looking rigorous, and a
-  judge that never abstains is the defect C16 closed. The number is reported and the judgment is left
+  judge that never abstains is the defect the abstain verdict closed. The number is reported and the judgment is left
   to the reader — who should read it against the pass rate beside it, and against the same figure from
   the previous iteration, where a jump is a judge that has drifted rather than a skill that changed.
 
@@ -1179,7 +1179,7 @@ character-for-character.
 The comparator's `expectation_results.details[]` ([§9](#9-blind-comparison-artifacts)) is a third
 thing again and keeps its own boolean `passed`. It is not a graded verdict on a run — it is one
 candidate's satisfaction of a statement inside a head-to-head comparison, written by a different agent
-into a different file, and no aggregation reads it. Contract C16 governs `grading.json` only.
+into a different file, and no aggregation reads it. The ternary-verdict contract governs `grading.json` only.
 
 The validator flags both mistakes by name: an `assertions` key in `grading.json`, and an
 `expectations` key in `eval_metadata.json`.

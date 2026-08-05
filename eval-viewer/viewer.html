@@ -27,14 +27,14 @@
       --amber-bg: #fbf3e0;
       --red: #c44;
       --red-bg: #fceaea;
-      /* Contract C16's third verdict. Deliberately not green, not red, and
+      /* The third verdict. Deliberately not green, not red, and
          not the amber the warning boxes use: an abstention is a finding, not
          a caution. Deliberately not the muted grey either — grey on this page
          means "never recorded", and an abstention is the opposite of that. The
          judge looked and declined to rule. */
       --slate: #5b6b8a;
       --slate-bg: #eef1f7;
-      /* Contract C16's third abstention REASON, which is not a third verdict.
+      /* The third abstention REASON, which is not a third verdict.
          `jurisdiction` and `evidence` are repaired by somebody other than the
          person reading this page — reassign the judge, capture the artifact —
          so they share the slate every abstention is drawn in. `underspecified`
@@ -534,7 +534,7 @@
     .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
     .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
     .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
-    /* Colour by goodness, not by arithmetic sign (contract C5). */
+    /* Colour by goodness, not by arithmetic sign. */
     .benchmark-delta-better { color: var(--green); font-weight: 600; }
     .benchmark-delta-worse { color: var(--red); font-weight: 600; }
     .benchmark-abstain { color: var(--slate); font-weight: 600; }
@@ -827,8 +827,8 @@
     let currentIndex = 0;
     let visitedRuns = new Set();
 
-    // The single marker for "we do not know this value". Contract C4: absent
-    // data is absent. It is never rendered as 0, and never as an empty cell
+    // The single marker for "we do not know this value". Absent data is
+    // absent. It is never rendered as 0, and never as an empty cell
     // that could pass for a measurement.
     const UNKNOWN = "—";
     const UNKNOWN_HTML = '<span class="unknown">' + UNKNOWN + '</span>';
@@ -874,7 +874,7 @@
         .replace(/\b\w/g, c => c.toUpperCase());
     }
 
-    // ---- Verdicts (contract C16) -------------------------------------------
+    // ---- Verdicts ----------------------------------------------------------
     //
     // Three states, and the third is not "unknown". `abstain` means the judge
     // looked at this expectation and declined to rule on it — for one of the
@@ -1414,7 +1414,7 @@
         }
         html += '</ul>';
 
-        // C3 keeps two words apart on purpose: `assertions` in
+        // Two words are kept apart on purpose: `assertions` in
         // eval_metadata.json is the input set an author wrote; `expectations`
         // in grading.json is what the grader returned. grader.md requires the
         // second to be copied character-for-character from the first, and the
@@ -1723,9 +1723,9 @@
     // Classified from the two stable fields, never from the prose. The
     // condition tag `C12:<condition>=<severity>` is the token every component
     // prints for exactly this purpose (scripts/utils.py), and the filename is
-    // the contract's own (C1). Matching on the sentence would break the next
+    // the canonical one. Matching on the sentence would break the next
     // time someone improves the wording, which is precisely how the three
-    // components drifted apart before C12 existed.
+    // components drifted apart before the shared tag existed.
     function hasCondition(reason, condition) {
       return String(reason == null ? "" : reason).indexOf("C12:" + condition + "=") !== -1;
     }
@@ -1791,7 +1791,7 @@
       return html;
     }
 
-    // Contract C5: comparison direction is by ROLE, never by sort order.
+    // Comparison direction is by ROLE, never by sort order.
     // benchmark.json declares "primary" and "baseline".
     //
     // A declared NULL is not a missing declaration. When the configuration
@@ -1824,7 +1824,7 @@
       return { primary, baseline, declared, primaryRefused, baselineRefused };
     }
 
-    // Contract C5: each metric declares its polarity, and the presentation
+    // Each metric declares its polarity, and the presentation
     // colours by goodness. A skill that is 10 seconds faster shows a negative
     // delta and must still be green.
     function deltaClass(value, lowerIsBetter) {
@@ -1892,7 +1892,7 @@
       if (isNum(stat.n)) parts.push("n=" + stat.n);
       // For a pass rate, a missing value is not an unrecorded one: the run was
       // graded, and every expectation in it abstained, so there is no rate.
-      // Filing that under "not recorded" says nobody looked (C16).
+      // Filing that under "not recorded" says nobody looked.
       if (isNum(stat.missing) && stat.missing > 0) {
         parts.push(stat.missing + (o.pct ? " with no rate" : " not recorded"));
       }
@@ -2108,14 +2108,14 @@
       // Abstentions get a row of their own, with no Change cell. Every other
       // row here declares a direction; abstention has no honest one — a judge
       // that abstains freely produces a benchmark measuring nothing while
-      // looking rigorous, and a judge that never abstains is the defect C16
-      // closed. Signing this number either way would be the page taking a side
+      // looking rigorous, and a judge that never abstains is the defect the
+      // abstain verdict closed. Signing this number either way would be the page taking a side
       // the data does not support.
       // Shown whenever there are counts at all, including when the answer is
       // zero. benchmark.md prints the section unconditionally for the same
       // reason: an absent row cannot be told from "this page does not show
       // abstentions", and the two renderings of one file must not disagree
-      // about what they disclose (contract C12's shape).
+      // about what they disclose.
       if (pMicro || bMicro) {
         const fmtAbstain = (m) => {
           if (!m) return UNKNOWN_HTML;
@@ -2599,7 +2599,7 @@
       return runs.some(r => r.result && r.result[key] !== undefined);
     }
 
-    // Contract C16: the denominator is passed + failed, NOT total. Abstentions
+    // The denominator is passed + failed, NOT total. Abstentions
     // are checks the judge declined to rule on; counting them in the
     // denominator states that the run failed them, which is precisely the
     // conflation this contract removed. `total` is still tracked, because the

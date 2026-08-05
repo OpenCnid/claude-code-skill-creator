@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Check a workspace against contracts C1 (layout), C2 (eval-directory naming),
-and C3 (field names) BEFORE any sub-agent runs.
+Check a workspace's layout, eval-directory naming, and field names BEFORE any
+sub-agent runs.
 
 This script exists to be cheap and to refuse early. Everything it does is a
 filesystem walk and a handful of JSON parses - no model calls, no network, no
@@ -18,15 +18,15 @@ Every failure names the exact path that is wrong and the exact path expected.
 
 Severity, and why this script still refuses more than the readers
 -----------------------------------------------------------------
-Severity is not decided here. `scripts.utils.WORKSPACE_CONDITIONS` is contract
-C12's table, and this script, `validate_grading` and `aggregate_benchmark` all
-classify from it and all print the same `C12:<condition>=<severity>` token.
+Severity is not decided here. `scripts.utils.WORKSPACE_CONDITIONS` is the one
+severity table, and this script, `validate_grading` and `aggregate_benchmark`
+all classify from it and all print the same `C12:<condition>=<severity>` token.
 Pointed at one flat-layout workspace, the three used to answer ERROR/exit 1,
 WARNING/exit 0 and WARNING-plus-a-correct-benchmark: three parties, one
 condition, three answers, because each computed the judgment itself.
 
-What the three do with a severity still differs, and C12 grants that. A
-C12-classified *warning* blocks here and nowhere else: the readers are
+What the three do with a severity still differs, and the shared table grants
+that. A shared-table *warning* blocks here and nowhere else: the readers are
 interpreting results that already exist, while this runs before any sub-agent
 is spawned, where the same layout costs a rename instead of a rerun. That is a
 decision about what to do, not a claim that the condition is worse than the
@@ -38,17 +38,17 @@ be able to pass.
 
 What it checks
 --------------
-C1  `run-<K>/` is always present, even for a single run (`run-1/`). A config
-    directory holding `grading.json` directly is contract C12's
-    `legacy_flat_layout` - a warning, because the readers normalize it and
-    aggregate it correctly - and it blocks here anyway, per the paragraph
-    above. Its grading.json and timing.json are validated where the readers
-    will read them, at the flattened path, and counted in the census as the
-    `run-1` they will be read as.
-C2  Eval directories are `eval-<ID>-<descriptive-slug>/`, and `<ID>` equals
-    `eval_metadata.json`'s `eval_id`.
-C3  `eval_metadata.json`, `grading.json`, and `timing.json` carry the exact
-    field names and types the readers expect.
+Layout  `run-<K>/` is always present, even for a single run (`run-1/`). A
+        config directory holding `grading.json` directly is the
+        `legacy_flat_layout` condition - a warning, because the readers
+        normalize it and aggregate it correctly - and it blocks here anyway,
+        per the paragraph above. Its grading.json and timing.json are validated
+        where the readers will read them, at the flattened path, and counted in
+        the census as the `run-1` they will be read as.
+Naming  Eval directories are `eval-<ID>-<descriptive-slug>/`, and `<ID>` equals
+        `eval_metadata.json`'s `eval_id`.
+Fields  `eval_metadata.json`, `grading.json`, and `timing.json` carry the exact
+        field names and types the readers expect.
 
 And, last, the projection that matters most: it runs the aggregator's own
 discovery over the tree and reports how many runs it would find. A workspace
@@ -118,11 +118,11 @@ IGNORED_DIRS = frozenset(
 class Findings:
     """Ordered errors and warnings, each anchored to a path.
 
-    A finding may carry a contract-C12 `condition`. When it does, its level
+    A finding may carry a workspace `condition`. When it does, its level
     comes from `scripts.utils`'s severity table and not from the call site -
     preflight does not get to decide that a flat layout is an error while the
     two readers call it a warning, which is exactly what it used to do. What
-    preflight *does* with the severity is still its own: a C12-classified
+    preflight *does* with the severity is still its own: a table-classified
     warning blocks (see `blocking`), because this is the gate that runs before
     money is spent and stricter is its job.
     """
@@ -141,7 +141,7 @@ class Findings:
                            "condition": condition})
 
     def classified(self, path, condition, detail="", expected=None):
-        """File a finding at contract C12's severity for `condition`."""
+        """File a finding at the shared table's severity for `condition`."""
         info = classify_workspace_condition(condition)
         record = self.error if info["severity"] == "error" else self.warning
         record(path, condition_line(condition, detail), expected=expected,
@@ -163,7 +163,7 @@ class Findings:
 
     @property
     def blocking(self):
-        """Warnings that name a C12 condition, which this gate refuses on.
+        """Warnings that name a workspace condition, which this gate refuses on.
 
         Advisory warnings - no `outputs/` yet, no configuration directories yet
         - are not here. A workspace prepared and not yet run is the state this
@@ -235,8 +235,8 @@ def check_config_dir(config_dir: Path, findings: Findings) -> dict:
         else:
             findings.error(
                 config_dir,
-                f"`{name}` is not a recognised configuration name. Contract C1 "
-                f"names them {', '.join(CANONICAL_CONFIGS)}; without a "
+                f"`{name}` is not a recognised configuration name. The "
+                f"canonical names are {', '.join(CANONICAL_CONFIGS)}; without a "
                 f"recognised name the primary/baseline roles cannot be inferred "
                 f"and every delta is undefined",
                 expected=str(config_dir.parent / "with_skill"),
@@ -254,11 +254,11 @@ def check_config_dir(config_dir: Path, findings: Findings) -> dict:
             )
 
     if not run_dirs:
-        # Contract C1: run-<K>/ is ALWAYS present. A flattened config directory
-        # is the layout that produced a benchmark of zeros from data graded
-        # 4/4. It is still a warning and not an error, because contract C12
-        # says so: the readers normalize it and aggregate it correctly, and a
-        # gate that calls a correctly-aggregating workspace broken is wrong
+        # run-<K>/ is ALWAYS present. A flattened config directory is the
+        # layout that produced a benchmark of zeros from data graded 4/4. It
+        # is still a warning and not an error, because the shared severity
+        # table says so: the readers normalize it and aggregate it correctly,
+        # and a gate that calls a correctly-aggregating workspace broken is wrong
         # about the workspace. This gate refuses to green-light it anyway - see
         # `Findings.blocking` - which is a decision about what to do, not about
         # what the condition is.
@@ -280,8 +280,8 @@ def check_config_dir(config_dir: Path, findings: Findings) -> dict:
         elif (config_dir / "outputs").is_dir():
             findings.error(
                 config_dir / "outputs",
-                "outputs/ sits directly in the configuration directory. "
-                "Contract C1 requires a run level even for a single run",
+                "outputs/ sits directly in the configuration directory. The "
+                "canonical layout requires a run level even for a single run",
                 expected=str(config_dir / "run-1" / "outputs"),
             )
         return census
@@ -317,7 +317,7 @@ def check_eval_dir(eval_dir: Path, findings: Findings) -> dict:
     if not match:
         findings.error(
             eval_dir,
-            f"`{name}` is not an eval directory name. Contract C2 is "
+            f"`{name}` is not an eval directory name. The expected form is "
             f"`eval-<ID>-<descriptive-slug>`, e.g. eval-0-handles-empty-csv",
             expected=str(eval_dir.parent / f"eval-<ID>-{name}"),
         )
@@ -326,8 +326,9 @@ def check_eval_dir(eval_dir: Path, findings: Findings) -> dict:
         if not match.group(2):
             findings.error(
                 eval_dir,
-                f"`{name}` has an id but no descriptive slug. Contract C2 is "
-                f"`eval-<ID>-<descriptive-slug>` so that results are readable "
+                f"`{name}` has an id but no descriptive slug. The expected "
+                f"form is `eval-<ID>-<descriptive-slug>` so that results are "
+                f"readable "
                 f"without cross-referencing metadata",
                 expected=str(eval_dir.parent / f"{name}-<descriptive-slug>"),
             )
@@ -430,7 +431,7 @@ def check_iteration(iteration_dir: Path, findings: Findings) -> dict:
                 child,
                 "eval directories live directly under the iteration directory; "
                 "the `runs/` level is a legacy shape readers still tolerate but "
-                "contract C1 does not define",
+                "the canonical layout does not define",
                 expected=str(iteration_dir / "eval-<ID>-<descriptive-slug>"),
             )
             continue
@@ -458,7 +459,8 @@ def check_iteration(iteration_dir: Path, findings: Findings) -> dict:
         if role_error:
             findings.error(
                 iteration_dir,
-                f"{role_error} (contract C5)",
+                f"{role_error}; with no primary and baseline roles a delta has no "
+                f"direction",
             )
 
     # The projection: what the aggregator would actually see. Cheap, and it is
@@ -598,9 +600,9 @@ def _report(target: Path, censuses: list, findings: Findings) -> dict:
         "counts": {
             "errors": len(findings.errors),
             "warnings": len(findings.warnings),
-            # Warnings that name a C12 condition. The readers proceed on these;
-            # this gate does not, and `ok` says which stance produced the exit
-            # code rather than leaving a caller to infer it.
+            # Warnings that name a workspace condition. The readers proceed on
+            # these; this gate does not, and `ok` says which stance produced
+            # the exit code rather than leaving a caller to infer it.
             "blocking_warnings": len(findings.blocking),
         },
         "ok": not findings.errors and not findings.blocking,
@@ -626,8 +628,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m scripts.preflight",
         description=(
-            "Validate a better-skill-creator workspace against contracts C1/C2/C3 "
-            "before any sub-agent spend. Filesystem and JSON only."
+            "Validate a better-skill-creator workspace's layout, naming and "
+            "fields before any sub-agent spend. Filesystem and JSON only."
         ),
     )
     parser.add_argument(
@@ -649,7 +651,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Contract C6: with --json, stdout carries the payload and nothing else.
+    # With --json, stdout carries the payload and nothing else.
     log = sys.stderr if args.json else sys.stdout
 
     if not args.workspace.exists():
@@ -694,29 +696,30 @@ def main(argv=None) -> int:
         print(
             f"\n{counts['errors']} error(s), {counts['warnings']} warning(s). "
             f"Fix these before spending on sub-agents.\n"
-            f"Expected layout (contract C1):\n\n{CANONICAL_LAYOUT}\n",
+            f"Expected layout:\n\n{CANONICAL_LAYOUT}\n",
             file=log,
         )
     elif counts["blocking_warnings"]:
         # Not a disagreement with the readers about severity - they classify
         # these as warnings and so does this script, from the same table. It is
-        # a disagreement about what to do, which contract C12 grants: they are
-        # reading results that already exist, this runs before the money is
+        # a disagreement about what to do, which the shared table grants: they
+        # are reading results that already exist, this runs before the money is
         # spent, and a layout fixed now costs a rename.
         print(
             f"\n{counts['blocking_warnings']} of {counts['warnings']} "
-            f"warning(s) name a contract-C12 condition. The readers accept "
+            f"warning(s) name a workspace condition. The readers accept "
             f"these and aggregate correctly; this gate does not, because "
             f"fixing the layout before the run costs a rename and fixing it "
             f"after costs the run.\n"
-            f"Expected layout (contract C1):\n\n{CANONICAL_LAYOUT}\n",
+            f"Expected layout:\n\n{CANONICAL_LAYOUT}\n",
             file=log,
         )
     elif counts["warnings"]:
         print(f"\nNo errors, {counts['warnings']} warning(s). Safe to proceed.",
               file=log)
     else:
-        print("\nWorkspace conforms to C1/C2/C3.", file=log)
+        print("\nWorkspace conforms to the expected layout, naming and fields.",
+              file=log)
 
     if args.json:
         json.dump(report, sys.stdout, indent=2)

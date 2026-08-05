@@ -147,5 +147,5 @@ whatever happens to be nearby and calls it evidence.
 output that merely has the right shape — which is the failure mode most worth catching.
 
 The audit seat's `disposition` is not optional in practice. An audit run without it cannot check the
-one C16 constraint with a measured history: whether every seat abstention reached the record, or was
+one constraint with a measured history: whether every seat abstention reached the record, or was
 absorbed by the composition and left no trace.

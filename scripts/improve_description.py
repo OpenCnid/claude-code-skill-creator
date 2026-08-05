@@ -24,7 +24,7 @@ def _call_claude(prompt: str, model: str | None, timeout: int = 300) -> str:
     Prompt goes over stdin (not argv) because it embeds the full SKILL.md
     body and can easily exceed comfortable argv length.
 
-    ``encoding``/``errors`` are named explicitly (contract C7). ``text=True``
+    ``encoding``/``errors`` are named explicitly. ``text=True``
     alone encodes stdin and decodes stdout with ``locale.getpreferredencoding``,
     which on this project's reference machine is cp1252 -- and the prompt
     carries the *entire* SKILL.md body, so a single em dash or arrow raised

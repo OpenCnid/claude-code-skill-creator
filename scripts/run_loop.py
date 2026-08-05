@@ -116,7 +116,7 @@ def run_loop(
     # a string it cannot vouch for. main() catches ValueError and exits 1, and
     # main() also runs check_skill_md_encoding before the spend gate — so a bad
     # SKILL.md stops the run before any probe, attributed to the file rather
-    # than showing up as a probe error, which under C8 means something else.
+    # than showing up as a probe error, which would mean something else.
     try:
         name, original_description, content = parse_skill_md(skill_path)
     except ValueError as exc:
@@ -356,7 +356,7 @@ def run_loop(
         )
 
     # ---- Harness health, rolled up across every iteration -----------------
-    # C4: a loop that never got a registration answer reports None, not 0. Zero
+    # A loop that never got a registration answer reports None, not 0. Zero
     # unregistered probes and "nobody ever told us" are different facts, and
     # rendering the second as the first is the whole defect class here.
     reporting = [h for h in health_by_iteration if h.get("probes_reporting_registration") is not None]

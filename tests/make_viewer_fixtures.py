@@ -41,7 +41,7 @@ Three workspaces, each aimed at a specific defect class:
   workspace/               entirely, a run that lost only its timing.json, and
                            an eval excluded from the delta but counted in its
                            own configuration's column.
-  abstain/       Contract C16 end to end. One eval where every check
+  abstain/       Ternary verdicts end to end. One eval where every check
                            abstained (no pass rate anywhere -- a `0` in any
                            cell is the defect), one where 100% over 2 ruled-on
                            checks sits beside 100% over 11 (the two must not
@@ -71,10 +71,10 @@ SKILL_ROOT = Path(__file__).resolve().parent.parent
 if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
-# The exclusion reasons below carry the shared contract-C12 condition tag, and
+# The exclusion reasons below carry the shared condition tag, and
 # they are built with the real classifier rather than hand-typed. A fixture
 # that spells the tag itself would keep passing after the vocabulary moved,
-# which is the whole failure mode C12 exists to close.
+# which is the whole failure mode the shared classifier exists to close.
 from scripts.utils import condition_line  # noqa: E402
 # The abstention-reason enum, imported for the same reason as `condition_line`
 # above: a fixture that spells the reasons out by hand keeps passing after the
@@ -100,7 +100,7 @@ def svg(tag):
 
 
 def expectations(texts, verdicts, evidence_overrides=None, reasons=None):
-    """Contract-C16 expectation entries.
+    """Ternary-verdict expectation entries.
 
     `verdicts` accepts the three verdict strings, and also `True`/`False` for
     the many call sites here that predate the ternary contract and mean exactly
@@ -286,7 +286,7 @@ def build(target: Path) -> Path:
         "expectations": e1_primary,
         "summary": summary_of(e1_primary),
     })
-    # NO timing.json for this run. Contract C4: unknown, never 0.
+    # NO timing.json for this run: unknown, never 0.
 
     w(e1 + "/old_skill/run-1/outputs/summary.txt", "Sales happened.\n")
     wj(e1 + "/old_skill/run-1/grading.json", {
@@ -733,7 +733,7 @@ def build(target: Path) -> Path:
     })
 
     # =======================================================================
-    # abstain: contract C16 end to end
+    # abstain: ternary verdicts end to end
     #
     # Three shapes on one page, and no two of them may render alike:
     #

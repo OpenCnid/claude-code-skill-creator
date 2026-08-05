@@ -4,13 +4,13 @@
 Derived from ``anthropics/skills``, ``skills/skill-creator/scripts/quick_validate.py``
 (Apache-2.0 -- see LICENSE.txt).
 
-Usage (contract C6 -- run as a module from the skill root)::
+Usage (run as a module from the skill root)::
 
     python -m scripts.quick_validate <skill-dir> [--target TARGET] [--json]
 
-Three contracts govern this file.
+Three rules govern this file.
 
-**C9 -- there is no single correct answer, and asserting one was the bug.**
+**There is no single correct answer, and asserting one was the bug.**
 The three surfaces a skill can be shipped to genuinely disagree about what is
 legal, so the validator takes a ``--target``:
 
@@ -76,7 +76,7 @@ would be stricter than the oracle, which is a false rejection; false rejections
 are the failure mode this rewrite exists to close, and this one would land
 hardest on the non-English authors these scripts have already failed once.
 
-**C6 -- accumulate, don't bail.** Every check runs and every finding is
+**Accumulate, don't bail.** Every check runs and every finding is
 reported in one pass. The previous implementation returned on the first
 problem, which turned "validate after any frontmatter edit" into a
 whack-a-mole loop. Exit status is non-zero if there is at least one error;
@@ -87,7 +87,7 @@ go to stderr. Without ``--json`` the human-readable verdict is the process's
 stdout (there is no machine consumer to corrupt, and the packager and the
 fixture drivers both read it there).
 
-**C7 -- encoding.** SKILL.md is read as UTF-8 (BOM tolerated) via
+**Encoding.** SKILL.md is read as UTF-8 (BOM tolerated) via
 :mod:`scripts.utils`; a decode failure is a message, not a traceback.
 
 Where this deviates from the reference validator
@@ -166,7 +166,7 @@ try:
         read_text_utf8,
     )
 except ImportError:  # pragma: no cover - allows `python scripts/quick_validate.py`
-    # C6 says to run these as modules from the skill root; this keeps the bare
+    # These are meant to run as modules from the skill root; this keeps the bare
     # path working anyway. `scripts` is a common enough directory name that an
     # unrelated implicit namespace package can already be cached under it (on
     # this machine, pywin32's site-packages/win32/scripts), so the stale entry
@@ -402,7 +402,7 @@ class Finding:
 
 
 class _Findings:
-    """Accumulator. Nothing in this module returns on first failure (C6)."""
+    """Accumulator. Nothing in this module returns on first failure."""
 
     def __init__(self, target: str) -> None:
         self.target = target
@@ -1061,7 +1061,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     errors = [f for f in findings if f.level == ERROR]
 
     if args.as_json:
-        # C6: stdout carries the JSON object alone.
+        # stdout carries the JSON object alone.
         print(json.dumps(_json_payload(args.skill_dir, args.target, findings), indent=2,
                          ensure_ascii=False))
     else:
