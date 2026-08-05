@@ -5,7 +5,7 @@ Reads the workspace directory, discovers runs (directories with outputs/),
 embeds all output data into a self-contained HTML page, and serves it via
 a tiny HTTP server. Feedback auto-saves to feedback.json in the workspace.
 
-Canonical workspace layout (contract C1):
+Canonical workspace layout:
 
     <skill>-workspace/
       iteration-<N>/
@@ -26,7 +26,7 @@ stderr. Nothing is silently tolerated.
 grading.json is embedded verbatim; this script does not interpret verdicts.
 One exception, and it is a disclosure rather than an interpretation: an
 expectation carrying the retired boolean `passed` and no `verdict` is the
-PREVIOUS grading contract (C16), and that is reported to stderr as well as on
+PREVIOUS grading contract, and that is reported to stderr as well as on
 the page. It is not translated here, because `false` under that contract meant
 either "verified false" or "the judge could not tell" and the file does not say
 which -- inventing the distinction is exactly what the contract change removed.
@@ -57,7 +57,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Console + encoding (contract C7)
+# Console + encoding
 # ---------------------------------------------------------------------------
 
 # This file lives at <skill-root>/eval-viewer/, outside the scripts package,
@@ -77,14 +77,15 @@ except Exception:  # pragma: no cover - import shim
                 pass
 
 
-# The run-directory pattern is a CONTRACT (C1), not a local convenience, and it
+# The run-directory pattern is a contract between readers, not a local
+# convenience, and it
 # is imported from the one module that owns it rather than re-typed here. This
 # file used to carry its own `^run-(.+)$`, which is looser than the scripts'
 # `^run-(\d+)$`: a `run-final/` directory was a first-class run to the viewer,
 # was excluded by the aggregator, and the two artifacts then disagreed about
 # what had been measured -- with the benchmark quietly relabelling whichever
 # configuration survived as the primary. Two regexes for one contract is a
-# drift surface by construction (C12).
+# drift surface by construction.
 try:  # pragma: no cover - import shim
     from scripts.validate_grading import RUN_DIR_RE  # type: ignore
 except Exception:  # pragma: no cover - import shim
@@ -186,7 +187,7 @@ def find_runs(workspace: Path) -> list[dict]:
 
 
 def _warn_about_layout(runs: list[dict]) -> None:
-    """Emit one visible warning per non-canonical run (C1, C12 severities)."""
+    """Emit one visible warning per non-canonical run, at the shared severity."""
     legacy = [r for r in runs if r["layout"] == "legacy-flat"]
     if legacy:
         warn(
@@ -283,12 +284,12 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     """Build a run dict with prompt, outputs, grading and timing data.
 
     Unknown values are None, never a zero or an empty string that the viewer
-    could mistake for a measurement (contract C4).
+    could mistake for a measurement.
     """
     prompt: str | None = None
     eval_id = None
     eval_name = None
-    # C3: the *input* set an author wrote is `assertions` in eval_metadata.json;
+    # The *input* set an author wrote is `assertions` in eval_metadata.json;
     # the *graded* results are `expectations` in grading.json. Carrying the
     # input set through lets the page check that the grader actually graded the
     # checks this eval declared, which nothing anywhere used to do.
@@ -340,7 +341,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
     run_id = str(run_dir.relative_to(root)).replace("/", "-").replace("\\", "-")
 
     # Three layouts, three verdicts, and every reader in this bundle uses the
-    # same names for them (C12):
+    # same names for them:
     #
     #   canonical     run-<K> with an integer K.  ok
     #   legacy-flat   no run level at all.        warning; normalized to run-1
@@ -363,9 +364,9 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
         )
     else:
         layout = "legacy-flat"
-        run_number = 1  # normalized, per C1
+        run_number = 1  # normalized to the canonical single-run number
         layout_note = (
-            "This run has no run-<K> directory (the pre-C1 flat layout). It has been "
+            "This run has no run-<K> directory (the legacy flat layout). It has been "
             "read as run-1. The canonical layout is "
             "<eval-dir>/<config>/run-<K>/outputs/."
         )
@@ -407,7 +408,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
                 "that started this viewer). This run contributes to no benchmark number."
             )
         else:
-            # Contract C16. A boolean `passed` with no `verdict` is the PREVIOUS
+            # A boolean `passed` with no `verdict` is the PREVIOUS
             # grading contract, and the aggregator excludes such a file outright.
             # The page says so too, but a viewer run on a stale workspace should
             # not require anyone to notice a banner: the same fact belongs in the
@@ -436,7 +437,7 @@ def build_run(root: Path, run_dir: Path) -> dict | None:
              "from the benchmark.")
 
     # Load timing if present. Absent timing stays None so the viewer can render
-    # "unknown" rather than a zero that reads as a real measurement (C4).
+    # "unknown" rather than a zero that reads as a real measurement.
     timing = None
     timing_path = run_dir / "timing.json"
     if not timing_path.is_file():

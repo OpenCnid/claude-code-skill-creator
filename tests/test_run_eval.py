@@ -584,7 +584,7 @@ class _FakeTty(io.StringIO):
 
 
 class TestConfirmationIsNeverInferredFromIsatty(unittest.TestCase):
-    """Contract C14 / R26.
+    """R26.
 
     `project_spend` guarded its `input()` with `if not sys.stdin.isatty()`.
     On Windows `isatty()` returns **True** for NUL and DEVNULL, so the guard

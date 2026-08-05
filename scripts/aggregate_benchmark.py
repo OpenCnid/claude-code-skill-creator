@@ -12,7 +12,7 @@ Example:
     python -m scripts.aggregate_benchmark ../my-skill-workspace/iteration-1 \\
         --skill-name my-skill
 
-Canonical layout (contract C1) - `run-<K>/` is ALWAYS present, and a single
+Canonical layout - `run-<K>/` is ALWAYS present, and a single
 run is `run-1/`, never a flattened config directory:
 
     <iteration_dir>/
@@ -28,7 +28,7 @@ Two legacy shapes are still read, each with a visible deprecation warning:
 a config directory holding grading.json directly (normalized to `run-1`), and
 eval directories under a `runs/` subdirectory.
 
-Severity is not decided here (contract C12). `scripts.utils` holds the one
+Severity is not decided here. `scripts.utils` holds the one
 severity table; this script, `scripts.validate_grading` and `scripts.preflight`
 all classify from it and all print the `C12:<condition>=<severity>` token, so
 the three verdicts for one workspace can be diffed instead of trusted. What
@@ -42,7 +42,7 @@ this script *does* with a severity is its own business, under one stated rule:
     no reader can see, or a delta whose two sides did not run the same evals -
     exits non-zero.
 
-What this script will NOT do (contract C4 - absent data is absent, never zero):
+What this script will NOT do (absent data is absent, never zero):
 
   * Zero discovered runs exits non-zero, prints every path searched and the
     layout expected, and writes no benchmark. It used to print `Delta: +0.00`
@@ -65,8 +65,8 @@ What this script will NOT do (contract C4 - absent data is absent, never zero):
     the pooled means reported `+0.50 better` - a favourable number whose entire
     magnitude came from an eval the baseline never attempted, over data whose
     one genuine comparison showed no difference at all.
-  * A run whose expectations **all abstained** has `pass_rate: null` (contract
-    C16), which `calculate_stats` drops rather than averages. It is not a 0%
+  * A run whose expectations **all abstained** has `pass_rate: null`, which
+    `calculate_stats` drops rather than averages. It is not a 0%
     run, it did not happen to score badly, and it contributes nothing to a
     delta. Where that is true of every run of a configuration, that
     configuration's `pass_rate` block is `null` outright and no delta is
@@ -74,11 +74,12 @@ What this script will NOT do (contract C4 - absent data is absent, never zero):
     reason.
 
 Abstention is reported next to every rate and is **not** a delta metric. Each
-delta declares a polarity (contract C5) and abstention has no honest one: a
-judge that abstains freely produces a benchmark that measures nothing while
-looking rigorous, and a judge that never abstains is the defect C16 exists to
-close. Signing that number in either direction would be this file taking a side
-on a question the data does not answer. So `run_summary.<config>.abstention`
+delta declares a polarity and abstention has no honest one: a judge that
+abstains freely produces a benchmark that measures nothing while looking
+rigorous, and a judge that never abstains is the defect the abstain verdict
+exists to close. Signing that number in either direction would be this file
+taking a side on a question the data does not answer. So
+`run_summary.<config>.abstention`
 carries the counts and the rate, `benchmark.md` prints them beside the pass
 rate and per eval, and the judgment is left to the reader - who now has the
 number needed to notice a judge that has drifted.
@@ -88,11 +89,11 @@ number needed to notice a judge that has drifted.
 that no agent has ever produced and that the grader rewrite retired. Emitting
 them as permanent nulls is not neutral - three always-empty columns read as
 "measured, and the answer was nothing", which is the exact ambiguity this
-rewrite exists to remove. Contract C10 governs: nothing produces them, so the
+rewrite exists to remove. The rule is that nothing produces them, so the
 requirement is gone rather than the producer added. If a real byte-size
 measurement ever lands here it gets a size label, never a token one.
 
-Comparison direction (contract C5): benchmark.json carries explicit `primary`
+Comparison direction: benchmark.json carries explicit `primary`
 and `baseline` keys naming the configurations by role. They appear at the top
 level and nowhere else - two copies of one contract element with nothing
 cross-checking them is precisely the drift this rewrite closes. Ordering is by
@@ -163,7 +164,7 @@ from scripts.validate_grading import (
     validate_timing_file,
 )
 
-# Contract C5: each metric declares which direction is an improvement.
+# Each metric declares which direction is an improvement.
 METRIC_POLARITY = {
     "pass_rate": "higher_is_better",
     "time_seconds": "lower_is_better",
@@ -246,7 +247,7 @@ def calculate_stats(values: list) -> dict | None:
 
 
 def abstention_stats(runs: list) -> dict | None:
-    """Pooled abstention counts over a set of runs (contract C16).
+    """Pooled abstention counts over a set of runs.
 
     Counts, not a mean of rates: `rate` is `abstained / total` over every
     expectation in every run, so a run with twenty expectations weighs twenty
@@ -300,7 +301,7 @@ def abstention_stats(runs: list) -> dict | None:
         "abstained": abstained,
         "graded": graded,
         "total": total,
-        # Contract C4 again: no expectations at all is unknown, not 0%.
+        # Again: no expectations at all is unknown, not 0%.
         "rate": round(abstained / total, 4) if total else None,
         "reasons": reasons,
         "runs": counted,
@@ -332,8 +333,8 @@ def _read_timing(run_dir: Path, warnings: list, exclusions: list) -> tuple:
     excludes its run. Without that, this function type-checked and nothing
     else: a timing.json of `{"total_tokens": -500000,
     "total_duration_seconds": -3600.0}` was averaged, differenced, and rendered
-    as `-3600.0s | -3610.0 | better` at exit 0. Contract C4's exclusion
-    discipline was written for both input files, not just the graded one.
+    as `-3600.0s | -3610.0 | better` at exit 0. The exclusion discipline was
+    written for both input files, not just the graded one.
     """
     timing_path = run_dir / "timing.json"
     if not timing_path.is_file():
@@ -425,12 +426,13 @@ def _collect_runs(config_dir: Path, warnings: list, exclusions: list) -> list:
         return runs
 
     if (config_dir / "grading.json").is_file():
-        # Legacy flat layout. Contract C1 permits reading it, but only by
+        # Legacy flat layout. Reading it is permitted, but only by
         # normalizing to run-1 and saying so out loud.
         warnings.append(
             f"DEPRECATED LAYOUT: {condition_line(LEGACY_FLAT_LAYOUT)} "
             f"{config_dir} holds grading.json directly; reading it as run-1. "
-            f"Contract C1 expects {config_dir / 'run-1' / 'grading.json'}"
+            f"The canonical layout expects "
+            f"{config_dir / 'run-1' / 'grading.json'}"
         )
         return [(1, config_dir)]
 
@@ -448,7 +450,7 @@ def _collect_runs(config_dir: Path, warnings: list, exclusions: list) -> list:
 def _undiscoverable(child: Path) -> dict:
     """An exclusion entry for a directory holding graded runs nobody walks.
 
-    Contract C12 makes this an error, not a warning: unlike an excluded run it
+    This is an error, not a warning: unlike an excluded run it
     is not merely dropped from the statistics, it is absent from the artifact
     entirely. The spend is already sunk and the result is invisible.
     """
@@ -458,8 +460,8 @@ def _undiscoverable(child: Path) -> dict:
             UNDISCOVERABLE_GRADING,
             f"`{child.name}` holds graded runs but is not a discoverable eval "
             f"directory, so its runs are NOT in this benchmark. Rename it "
-            f"`eval-<ID>-{child.name}` or add {child / 'eval_metadata.json'} "
-            f"(contract C2)"),
+            f"`eval-<ID>-{child.name}` or add "
+            f"{child / 'eval_metadata.json'}"),
         "errors": [],
     }
 
@@ -470,7 +472,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
 
     Returns {"results", "eval_names", "warnings", "exclusions", "searched"}.
 
-    `exclusions` carries every contract-C12 condition of error severity that
+    `exclusions` carries every workspace condition of error severity that
     the walk found, each with the path it applies to and the shared sentence
     for that condition; `warnings` carries the warning-severity ones. Neither
     list decides an exit code here - `main` does that, from the severities.
@@ -505,7 +507,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
     if search_dir.name == "runs":
         warnings.append(
             f"DEPRECATED LAYOUT: eval directories found under {search_dir}. "
-            f"Contract C1 puts them directly under {benchmark_dir}"
+            f"The canonical layout puts them directly under {benchmark_dir}"
         )
 
     for child in sorted(search_dir.iterdir()):
@@ -544,8 +546,8 @@ def discover_runs(benchmark_dir: Path) -> dict:
                     if dir_eval_id is not None and meta_id != dir_eval_id:
                         warnings.append(
                             f"{metadata_path}: eval_id is {meta_id} but the "
-                            f"directory says {dir_eval_id} (contract C2 "
-                            f"requires them equal); using {meta_id}"
+                            f"directory says {dir_eval_id} (they must be "
+                            f"equal); using {meta_id}"
                         )
                     eval_id = meta_id
                 elif meta_id is not None:
@@ -583,8 +585,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
                 f"{eval_dir}: eval_id {eval_id!r} was already claimed by "
                 f"{seen_eval_dirs[eval_id]}. Their runs are pooled under one id "
                 f"and any consumer keyed on (eval_id, configuration, "
-                f"run_number) will collide. Give each eval a distinct id "
-                f"(contract C2)"
+                f"run_number) will collide. Give each eval a distinct id"
             )
         else:
             seen_eval_dirs[eval_id] = str(eval_dir)
@@ -593,7 +594,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
         stray = eval_dir / "grading.json"
         if stray.is_file():
             # Graders have been observed writing here. Nothing walks it, so
-            # without this it is invisible rather than excluded (C12).
+            # without this it is invisible rather than excluded.
             exclusions.append({
                 "path": str(stray),
                 "reason": condition_line(
@@ -640,7 +641,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
                 for warning in file_warnings:
                     warnings.append(f"{grading_file}: {warning}")
                 if errors:
-                    # Contract C4: named, counted, excluded - and the exclusion
+                    # Named, counted, excluded - and the exclusion
                     # is visible in both output artifacts.
                     exclusions.append({
                         "path": str(grading_file),
@@ -689,7 +690,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
                     "run_number": run_number,
                     "run_dir": str(run_dir),
                     # `pass_rate` is null for a run whose expectations all
-                    # abstained (C16). It stays null all the way through:
+                    # abstained. It stays null all the way through:
                     # calculate_stats drops it, no delta uses it, and the
                     # rendered cell is an em dash. The 0.0 the previous
                     # contract produced here was a measurement of nothing.
@@ -720,7 +721,7 @@ def discover_runs(benchmark_dir: Path) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Roles and aggregation (contract C5)
+# Roles and aggregation
 # --------------------------------------------------------------------------
 
 def resolve_roles(configs: list, primary_arg: str | None, baseline_arg: str | None):
@@ -731,7 +732,7 @@ def resolve_roles(configs: list, primary_arg: str | None, baseline_arg: str | No
     only one configuration exists, and which one is None is decided by the
     surviving configuration's *name*, never by the fact that it survived:
 
-    * only `with_skill`/`new_skill` -> primary, baseline None. Contract C5's
+    * only `with_skill`/`new_skill` -> primary, baseline None. This is the
       single-configuration record: no delta, rather than a delta against an
       invented zero.
     * only `without_skill`/`old_skill`/`baseline`/`no_skill` -> baseline,
@@ -818,7 +819,7 @@ def resolve_roles(configs: list, primary_arg: str | None, baseline_arg: str | No
 
 def pair_evals(results: dict, primary: str | None, baseline: str | None,
                dropped_runs=None) -> dict:
-    """Which evals the two configurations can actually be compared on (C12).
+    """Which evals the two configurations can actually be compared on.
 
     Returns ``{"paired", "unpaired", "imbalanced", "missing_role", "complete",
     "checked"}``. `paired` is the evals the delta may use; `unpaired`,
@@ -845,19 +846,20 @@ def pair_evals(results: dict, primary: str | None, baseline: str | None,
     being null and by the per-cell `n`.
 
     **Missing role.** A workspace holding only the primary is a legitimate
-    single-configuration record: contract C5 makes `baseline` null and no delta
+    single-configuration record: `baseline` is null and no delta
     is reported. A workspace holding only the *baseline* is not the mirror
     image of that - the configuration under test is the thing being recorded,
     and if it produced nothing there is no result about it. Every eval is then
     present in one configuration and absent from its counterpart, which is the
-    same row of C12's table as the other two.
+    same row of the severity table as the other two.
 
     `checked` is False only when there is no pair to check. A configuration
     that produced nothing usable is *not* exempt - its evals are unpaired,
     which is a different statement from "this configuration contributed
     nothing" and is the one that says why no delta may be reported. Exempting
     it here would also have made this function answer differently from
-    `validate_grading`'s tree walk, which is the divergence C12 exists to stop.
+    `validate_grading`'s tree walk, which is the divergence one shared severity
+    table exists to stop.
     """
     empty = {"paired": [], "unpaired": {}, "imbalanced": {},
              "missing_role": None, "complete": True, "checked": False}
@@ -963,7 +965,7 @@ def aggregate_results(results: dict, primary: str | None, baseline: str | None,
             "tokens": calculate_stats([r["tokens"] for r in runs]),
             # Beside every rate, never instead of one. A 100% pass rate over
             # two graded expectations and nine abstentions is a different
-            # result from 100% over eleven (C16), and `pass_rate` alone cannot
+            # result from 100% over eleven, and `pass_rate` alone cannot
             # tell them apart.
             "abstention": abstention_stats(runs),
             "runs": len(runs),
@@ -1107,7 +1109,7 @@ def build_benchmark(discovery: dict, primary: str | None, baseline: str | None,
     common_count = distinct.pop() if len(distinct) == 1 else None
 
     return {
-        # Contract C5: role is explicit, and lives here only. It was also
+        # Role is explicit, and lives here only. It was also
         # mirrored into `metadata`; two copies of one contract element with
         # nothing cross-checking them drift the first time either path is
         # edited, which is the defect shape this rewrite closes.
@@ -1221,7 +1223,7 @@ def _fmt_cell(stats, kind: str) -> str:
         # For pass_rate a missing value is not an unmeasured one - the run was
         # graded, and every expectation in it abstained, so there is no rate.
         # Calling that "unmeasured" would file a real finding under "we did not
-        # look" (contract C16).
+        # look".
         cell += (f", {stats['missing']} with no rate"
                  if kind == "pass_rate" else
                  f", {stats['missing']} unmeasured")
@@ -1304,7 +1306,7 @@ def _per_eval_rows(benchmark: dict, primary, baseline) -> list:
         p_mean = mean_of(primary)
         b_mean = mean_of(baseline)
         if baseline is None and primary is not None:
-            # Contract C5's single-configuration record. There is no
+            # The single-configuration record. There is no
             # counterpart to pair against, so "no" would read as a defect.
             delta = ABSENT
             paired = ABSENT
@@ -1457,7 +1459,7 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
         "runs, not over assertions).",
     ])
 
-    # Contract C16. This block sits directly under the summary table because
+    # This block sits directly under the summary table because
     # the pass rate above cannot be read without it: 100% over two graded
     # checks and nine abstentions is not the same result as 100% over eleven,
     # and the row above renders both as `100%`.
@@ -1490,8 +1492,8 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
         lines.extend([
             "",
             "**There is deliberately no delta on this row and no polarity.** "
-            "Every other metric here declares which direction is better "
-            "(contract C5) and abstention has no honest answer: a judge that "
+            "Every other metric here declares which direction is better, "
+            "and abstention has no honest answer: a judge that "
             "abstains freely produces a benchmark that measures nothing while "
             "looking rigorous, and a judge that never abstains is the defect "
             "that made an unverifiable check count as evidence against the "
@@ -1551,7 +1553,7 @@ def generate_markdown(benchmark: dict, pairing: dict | None = None) -> str:
             "## Excluded from aggregation",
             "",
             f"{len(benchmark['exclusions'])} item(s) were left out of some or "
-            f"all of the numbers above. Each names its contract-C12 condition.",
+            f"all of the numbers above. Each names its workspace condition.",
             "",
         ])
         for item in benchmark["exclusions"]:
@@ -1595,7 +1597,7 @@ def main(argv=None) -> int:
     parser.add_argument("--skill-path", default="",
                         help="path to the skill being benchmarked")
     parser.add_argument("--primary", default=None,
-                        help="configuration to treat as primary (contract C5). "
+                        help="configuration to treat as primary. "
                              "Inferred from the config names when unambiguous.")
     parser.add_argument("--baseline", default=None,
                         help="configuration to treat as the baseline")
@@ -1613,7 +1615,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     # This script's product is files; every human-readable line goes to stderr
-    # so nothing here can corrupt a machine consumer reading stdout (C6).
+    # so nothing here can corrupt a machine consumer reading stdout.
     log = sys.stderr
 
     if not args.benchmark_dir.exists():
@@ -1647,7 +1649,7 @@ def main(argv=None) -> int:
             f"{condition_line(ZERO_RUNS)}. No benchmark was written - a "
             f"benchmark built from nothing renders as a real result.\n\n"
             f"Searched:\n{searched}{excluded}\n\n"
-            f"Expected layout (contract C1):\n\n{CANONICAL_LAYOUT}\n"
+            f"Expected layout:\n\n{CANONICAL_LAYOUT}\n"
         )
 
     configs = list(results.keys())
@@ -1676,7 +1678,7 @@ def main(argv=None) -> int:
     output_json = args.output or (args.benchmark_dir / "benchmark.json")
     output_md = output_json.with_suffix(".md")
 
-    # Contract C7: encoding is never left to the platform default. benchmark.md
+    # Encoding is never left to the platform default. benchmark.md
     # carries ± and — ; without this it was written in cp1252 on Windows and
     # was not valid UTF-8 for any reader downstream.
     with open(output_json, "w", encoding="utf-8") as f:
@@ -1702,7 +1704,7 @@ def main(argv=None) -> int:
         n = benchmark["metadata"]["runs_per_configuration_by_config"].get(config, 0)
         abstention = run_summary[config].get("abstention")
         # Printed on the same line as the rate, always. A rate on its own line
-        # is the artifact C16 says must not exist.
+        # is the artifact that must not exist.
         beside = f", abstentions {_fmt_abstention(abstention, short=True)}"
         if stats is None and n == 0:
             print(f"  {_label(config)}{role}: no usable runs", file=log)

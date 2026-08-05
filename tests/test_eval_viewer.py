@@ -71,7 +71,7 @@ def css_declarations(html: str, selector: str) -> dict:
     Comparing class NAMES proves nothing about how two badges look - three
     distinct classes can resolve to one colour. This reads what the rules
     actually set and substitutes `var(--x)` against `:root`, so the comparison
-    is between the values a browser would paint (contract C15).
+    is between the values a browser would paint.
     """
     style = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html, re.S))
     style = re.sub(r"/\*.*?\*/", "", style, flags=re.S)
@@ -232,7 +232,7 @@ class HtmlEscapingContexts(unittest.TestCase):
 
 
 class AbsentDataIsNotZero(unittest.TestCase):
-    """Contract C4."""
+    """Absent data is absent: never rendered as zero."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -307,7 +307,7 @@ class AbsentDataIsNotZero(unittest.TestCase):
 
 
 class ComparisonDirection(unittest.TestCase):
-    """Contract C5: order by role, colour by goodness."""
+    """Order by role, colour by goodness."""
 
     def test_delta_colour_comes_from_the_declared_better_flag(self):
         body = "\n".join(script_bodies(VIEWER_HTML))
@@ -555,7 +555,7 @@ class AssertionAlignmentBehaviour(unittest.TestCase):
 
 
 class LayoutReading(unittest.TestCase):
-    """Contract C1."""
+    """The canonical <config>/run-<K>/ layout, and the legacy shapes."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -626,7 +626,7 @@ class LayoutReading(unittest.TestCase):
 
 
 class Encoding(unittest.TestCase):
-    """Contract C7."""
+    """Encoding is explicit on every read and write."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -1278,7 +1278,7 @@ class OfflineRendering(unittest.TestCase):
 class PageScriptHarness:
     """Run viewer.html's own script under node and read what it produced.
 
-    Contract C15: a check has to observe the property, not a proxy for it.
+    A check has to observe the property, not a proxy for it.
     Grepping viewer.html for the word "abstain" would pass over a page that
     computed a rate of 0% and printed the word in a caption, and grepping it
     for "underspecified" would pass over a page that names the reason in a
@@ -1366,7 +1366,7 @@ class PageScriptHarness:
 
 
 class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
-    """Contract C16, executed rather than read."""
+    """Ternary verdicts, executed rather than read."""
 
     @classmethod
     def setUpClass(cls):
@@ -1559,7 +1559,7 @@ class TernaryVerdicts(PageScriptHarness, unittest.TestCase):
 
 
 class AbstentionReasonTaxonomy(PageScriptHarness, unittest.TestCase):
-    """Contract C16's typed reasons, and the two states that are not reasons.
+    """The typed abstention reasons, and the two states that are not reasons.
 
     The page shipped with two hand-maintained whitelists - `ABSTAIN_REASON_TEXT`
     and `abstainReasonOf` - while the contract's enum grew to three. A

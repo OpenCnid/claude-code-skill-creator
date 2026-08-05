@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """
-Instantiation gates for a composed judge panel (contract C17), run before any
-seat is spawned.
+Instantiation gates for a composed judge panel, run before any seat is spawned.
 
-Why this exists as code rather than as prose. C17 requires that a composed
-cover be shown to discriminate *before* it judges anything load-bearing: no
-seat's anchors may be all-pass, all-fail, or all-abstain; the seats must cover
-the characterized domain; overlapping seats must declare how they glue; every
+Why this exists as code rather than as prose. A composed cover has to be shown
+to discriminate *before* it judges anything load-bearing: no seat's anchors may
+be all-pass, all-fail, or all-abstain; the seats must cover the characterized
+domain; overlapping seats must declare how they glue; every
 seat must have both a way to fail and an abstention path. Each of those is a
 sentence anyone could agree with while shipping a composition that violates it,
 because a gate written as prose is a gate that can be reasoned around - and the
@@ -17,7 +16,7 @@ reason and a non-zero exit.
     A seat that cannot fire on its own anchors is a blind instrument, and a
     blind instrument's pass is noise.
 
-Two gates beyond the four C17 names, both serving "ship the composer, never the
+Two gates beyond the four above, both serving "ship the composer, never the
 cast":
 
   * `provenance_missing` - a composition must carry the skill it was composed
@@ -42,15 +41,16 @@ Exit codes:
     2  a file could not be read, parsed, or was not supplied
 
 With --json the machine-readable report goes to stdout *alone*; every
-human-readable line goes to stderr (contract C6).
+human-readable line goes to stderr.
 
 Verdict vocabulary. Anchors are written in the grading artifact's own tokens -
 `pass` and `fail` - so that a seat's return needs no translation on its way into
-`expectations[].verdict` (C16); a translation layer between a seat verdict and
-the artifact verdict would be a second representation of one fact, which is the
-drift surface C16 exists to remove. The house tokens `clean` and `drawback` are
-accepted as aliases and normalized, because the same composer schema is used by
-panels whose records speak that vocabulary. Anything else is a typed refusal
+`expectations[].verdict`; a translation layer between a seat verdict and the
+artifact verdict would be a second representation of one fact, which is exactly
+the drift surface one shared vocabulary removes. The house tokens `clean` and
+`drawback` are accepted as aliases and normalized, because the same composer
+schema is used by panels whose records speak that vocabulary. Anything else is
+a typed refusal
 rather than a guess.
 """
 
@@ -74,7 +74,7 @@ from scripts.utils import configure_console
 
 SCHEMA_ID = "panel.composition/1"
 
-#: The belief-facing seats. C17 fixes the roles; the composer fills them.
+#: The belief-facing seats. The roles are fixed; the composer fills them.
 REQUIRED_SEATS = ("grounding", "coherence", "corroboration")
 
 #: Ten anchors per seat, five a side. Ten obvious cases calibrate nothing, so
@@ -136,11 +136,11 @@ REFUSAL_REASONS = {
         "the composition's embedded facet copy omits facets the "
         "characterization carries",
     "seat_missing":
-        "a belief-facing seat required by C17 is absent",
+        "a required belief-facing seat is absent",
     "seat_duplicate":
         "a seat role appears more than once",
     "seat_unknown":
-        "a seat role outside the C17 set is present",
+        "a seat role outside the belief-facing set is present",
     "anchor_count":
         "a seat's anchor set is not the required size",
     "anchor_balance":
@@ -212,8 +212,8 @@ def _is_list_of_text(value: Any) -> bool:
 
 
 # --------------------------------------------------------------------------
-# Loading. Contract C7: encoding is always explicit, and UnicodeDecodeError is
-# not caught by (json.JSONDecodeError, OSError).
+# Loading. Encoding is always explicit, and UnicodeDecodeError is not caught
+# by (json.JSONDecodeError, OSError).
 # --------------------------------------------------------------------------
 
 def load_document(path: Path) -> tuple[Optional[dict], Optional[str]]:
@@ -275,7 +275,8 @@ def check_provenance(composition: dict) -> list[dict]:
         return [_finding(
             "provenance_missing",
             "no `provenance` object. A composition without provenance cannot "
-            "be told from a roster, which is what C17 forbids shipping.",
+            "be told from a roster, and a roster is a cast a later run could "
+            "select from rather than a record of the run that composed it.",
         )]
 
     missing = [key for key in ("skill", "composed_at", "characterization_sha256")
@@ -368,7 +369,7 @@ def check_seat_roster(seats: list[Any]) -> list[dict]:
         if role not in REQUIRED_SEATS:
             findings.append(_finding(
                 "seat_unknown",
-                f"seat role {role!r} is outside the C17 set "
+                f"seat role {role!r} is outside the belief-facing set "
                 f"({', '.join(REQUIRED_SEATS)})", seat=role))
         elif count > 1:
             findings.append(_finding(
@@ -484,8 +485,8 @@ def check_anchors(seat: dict, role: str,
     if len(anchors) != ANCHOR_TOTAL:
         findings.append(_finding(
             "anchor_count",
-            f"{len(anchors)} anchors; C17 fixes the set at {ANCHOR_TOTAL}, "
-            f"{ANCHOR_PER_SIDE} a side", seat=role))
+            f"{len(anchors)} anchors; the anchor set is fixed at "
+            f"{ANCHOR_TOTAL}, {ANCHOR_PER_SIDE} a side", seat=role))
 
     seen_inputs: dict[str, int] = {}
     for index, anchor in enumerate(anchors):
@@ -548,7 +549,7 @@ def check_anchors(seat: dict, role: str,
         findings.append(_finding(
             "anchor_balance",
             f"{tally['pass']} pass / {tally['fail']} fail / "
-            f"{tally['abstain']} abstain; C17 fixes the calibration set at "
+            f"{tally['abstain']} abstain; the calibration set is fixed at "
             f"{ANCHOR_PER_SIDE} a side", seat=role))
 
     return findings, tally
@@ -846,8 +847,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m scripts.gate_panel",
         description=(
-            "Zero-model instantiation gates for a composed judge panel "
-            "(contract C17). Run before any seat is spawned."
+            "Zero-model instantiation gates for a composed judge panel. "
+            "Run before any seat is spawned."
         ),
     )
     parser.add_argument(
@@ -878,7 +879,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Contract C6: with --json, stdout carries the payload and nothing else.
+    # With --json, stdout carries the payload and nothing else.
     human = sys.stderr if args.json else sys.stdout
 
     if args.list_reasons:

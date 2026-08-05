@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract C12: one condition, one classification, three components.
+"""One condition, one classification, three components.
 
 Run from the skill root:
 
@@ -14,8 +14,8 @@ parties, one condition, three answers.
 which keeps failing. It runs all three components against every workspace
 fixture, extracts the `C12:<condition>=<severity>` tokens from their output,
 and requires the three sets to be identical. Exit codes are deliberately *not*
-required to match - contract C12 grants components different responses to one
-severity, and preflight uses that grant - but a condition classified two ways
+required to match - components may respond differently to one severity, and
+preflight uses that latitude - but a condition classified two ways
 fails here, and so does a condition one component sees and another does not.
 
 The rest of the file pins the specific repros from research/V1-verification.md
@@ -124,7 +124,7 @@ class WorkspaceCase(unittest.TestCase):
 # --------------------------------------------------------------------------
 
 class TestSeverityTable(unittest.TestCase):
-    """`scripts.utils` transcribes contract C12's table, and only it does."""
+    """`scripts.utils` holds the severity table, and only it does."""
 
     def test_every_row_of_the_contract_is_present_with_its_severity(self):
         self.assertEqual(
@@ -138,7 +138,7 @@ class TestSeverityTable(unittest.TestCase):
                 SCHEMA_INVALID: SEVERITY_ERROR,
                 UNPAIRED_EVALS: SEVERITY_ERROR,
             },
-            "the table here and the table in _CONTRACT.md's C12 are one table",
+            "the table here and WORKSPACE_CONDITIONS are one table",
         )
 
     def test_an_unknown_condition_raises_rather_than_defaulting(self):
@@ -152,7 +152,7 @@ class TestSeverityTable(unittest.TestCase):
         try:
             classify_workspace_condition("not_a_condition")
         except UnknownWorkspaceCondition as exc:
-            self.assertIn("_CONTRACT.md", str(exc))
+            self.assertIn("WORKSPACE_CONDITIONS in scripts/utils.py", str(exc))
             self.assertIn("must not decide a severity locally", str(exc))
 
     def test_the_tag_is_one_greppable_token(self):
@@ -264,7 +264,7 @@ class TestLegacyFlatLayout(WorkspaceCase):
         self.assertEqual(proc.returncode, 1, out)
         self.assertNotIn("ERROR  ", out)
         self.assertIn("The readers accept these and aggregate correctly", out)
-        self.assertIn("warning(s) name a contract-C12 condition", out)
+        self.assertIn("warning(s) name a workspace condition", out)
 
     def test_the_benchmark_is_still_correct(self):
         self.script("aggregate_benchmark", self.iteration("repro-flat"),
@@ -653,7 +653,7 @@ class TestDroppedConfiguration(WorkspaceCase):
                                   f"{name} did not classify {description}")
 
     def test_a_legitimate_single_configuration_record_still_passes(self):
-        """Contract C5: baseline null, delta absent, nothing invented."""
+        """Baseline null, delta absent, nothing invented."""
         procs = self.all_three("primary-only")
         for name, proc in procs.items():
             with self.subTest(component=name):

@@ -29,18 +29,18 @@ rules decide what goes in, and every run prints a positive report of what was
 included, what was excluded and why. That report is the backstop for whatever
 the rules still miss, and it is what caught both of the leaks below.
 
-**1. Containment, not link-detection (contract C13).** Every candidate path is
+**1. Containment, not link-detection.** Every candidate path is
 resolved and has to stay inside the *resolved* skill folder. Testing whether a
 path *is* a link was a proxy, and the proxy missed: ``Path.is_symlink()``
 returns False for an NTFS directory junction, junctions need no elevation to
 create (``mklink /J``), and ``os.walk(followlinks=False)`` walks straight
 through one - so two files from outside the skill tree shipped silently
-(research/V2-verification.md, R29a). A path that resolves outside the folder is
+(research/_REMEDIATION.md R29a). A path that resolves outside the folder is
 never opened, never descended into, and is named in the report. A link that
 resolves *inside* the folder is skipped too, because its target already ships
 under its real name; that also makes a junction loop impossible.
 
-**2. Categories and patterns, never a filename prefix (contract C13).** The
+**2. Categories and patterns, never a filename prefix.** The
 exclusion rule used to be ``name.startswith(".env")``, which matches a prefix
 where the risk is a suffix and a category, so ``production.env``,
 ``config/local.env``, ``token.txt`` and ``secrets.yaml`` all shipped (R29b).
@@ -168,7 +168,7 @@ NAMED_FILE_EXCLUSIONS = {
 }
 
 # --------------------------------------------------------------------------
-# Sensitive-content categories (contract C13)
+# Sensitive-content categories
 #
 # These are matched against the *whole basename*, case-insensitively, for both
 # files and directories, dot-prefixed or not, and they are consulted before
@@ -309,7 +309,7 @@ class Exclusion:
 
     ``files``/``size`` are ``None`` when the tree was never walked - a directory
     that reparses is not descended into even to count bytes, and reporting 0 for
-    it would be a default that renders as a measurement (contract C4).
+    it would be a default that renders as a measurement.
     """
 
     path: str
@@ -394,8 +394,8 @@ def _finding_lines(payload) -> list[str]:
 def _normalize_validation(raw) -> tuple[bool, list[str], list[str]]:
     """Return (ok, errors, warnings) from quick_validate's return value.
 
-    quick_validate is owned elsewhere and C6 only fixes its *CLI* contract, so
-    accept the shapes that contract admits. An unrecognized shape raises rather
+    quick_validate is owned elsewhere and only its *CLI* surface is fixed, so
+    accept the shapes that surface admits. An unrecognized shape raises rather
     than defaulting to "valid" - a packager that guesses "ok" on an unreadable
     verdict is exactly the silent-pass this rewrite exists to remove.
     """
@@ -556,7 +556,7 @@ def _name_words(name: str) -> set[str]:
 def _sensitive_reason(name: str) -> str | None:
     """Why this name is credential-shaped, or None.
 
-    Patterns and categories only - never a filename prefix (contract C13).
+    Patterns and categories only - never a filename prefix.
     """
     lowered = name.lower()
     for pattern, reason in SENSITIVE_GLOBS:
@@ -609,7 +609,7 @@ def _exclusion_reason(name: str, *, is_dir: bool, depth: int) -> str | None:
 
 
 # --------------------------------------------------------------------------
-# Containment (contract C13)
+# Containment
 # --------------------------------------------------------------------------
 
 
@@ -755,8 +755,7 @@ def collect(
     Everything is enumerated before a single byte is written, which is what
     makes it impossible for the archive being produced to end up inside itself.
 
-    Two containment rules apply to every entry, before any name-based rule
-    (contract C13):
+    Two containment rules apply to every entry, before any name-based rule:
 
     * a path whose resolved form is not inside the resolved skill folder is
       skipped, reported and warned about - whether it got there by symlink,
@@ -1267,7 +1266,7 @@ def render_report(result: PackageResult, stream=None) -> None:
             weight = ""
             if exclusion.path.endswith("/"):
                 if exclusion.files is None or exclusion.size is None:
-                    # Never walked, so its weight is unknown, not zero (C4).
+                    # Never walked, so its weight is unknown, not zero.
                     weight = " [not descended into]"
                 else:
                     weight = f" [{exclusion.files} file(s), {_human_size(exclusion.size)}]"

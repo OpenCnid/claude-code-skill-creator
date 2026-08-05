@@ -23,7 +23,7 @@ cited one of them.
 
 The orchestrator who did that was following the frame's prose and got it wrong
 anyway. A rule that a careful reader can follow incorrectly belongs in code -
-the same argument that put the C17 instantiation gates in ``gate_panel.py``.
+the same argument that put the panel instantiation gates in ``gate_panel.py``.
 
     A seat's independence is a fact about which bytes it was handed. This
     script is where that fact is made, and the render report is where it is
@@ -44,8 +44,8 @@ orchestrator writes beside the composition. This takes the third.
   * A required field on ``inputs`` would change the composition schema, and
     therefore ``composer.md`` and ``gate_panel.py``. It also puts the path
     mapping inside the artifact composed blind to the candidate - the composer
-    would be naming this run's files, which is exactly what C17 forbids it
-    seeing.
+    would be naming this run's files, which is exactly what composing blind is
+    meant to keep it from seeing.
   * A per-entry glob is the same change wearing a smaller hat.
   * A separate manifest keeps the composition a record of one characterization,
     and puts the run-specific mapping where the run-specific knowledge is: with
@@ -66,7 +66,7 @@ manifest loud rather than silent:
     swallows the note channel beside it, and an undeclared collision between
     those two sets is the shape of the leak.
   * A seat whose allowlist admits no path at all is ``seat_admits_nothing``.
-  * Every admitted path is resolved and confirmed inside its item's base (C13),
+  * Every admitted path is resolved and confirmed inside its item's base,
     and refused if it carries a configuration name - ``with_skill``,
     ``without_skill``, ``old_skill`` - because the frame requires authorship
     masked and directory names are where it leaks.
@@ -98,7 +98,7 @@ Exit codes:
     2  a file could not be read, parsed, or was not supplied
 
 With --json the machine-readable report goes to stdout *alone*; every
-human-readable line goes to stderr (contract C6).
+human-readable line goes to stderr.
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ INVARIANT_SECTIONS = ("identity", "output_schema")
 #: A free variable in the frame: ``{This_Seats_Composed_Definition...}``.
 PLACEHOLDER = re.compile(r"\{[A-Z][A-Za-z0-9_]*\}")
 
-#: C1's configuration directory names. Which configuration produced a file is
+#: The configuration directory names. Which configuration produced a file is
 #: never a parameter to a seat, and a path is the usual place it leaks.
 AUTHORSHIP_SEGMENTS = ("with_skill", "without_skill", "old_skill")
 
@@ -274,8 +274,8 @@ def _no_material_why(channel: dict) -> str:
 
 
 # --------------------------------------------------------------------------
-# Loading. C7: encoding is always explicit, and UnicodeDecodeError is not
-# caught by (json.JSONDecodeError, OSError).
+# Loading. Encoding is always explicit, and UnicodeDecodeError is not caught
+# by (json.JSONDecodeError, OSError).
 # --------------------------------------------------------------------------
 
 def read_text(path: Path) -> tuple[Optional[str], Optional[str]]:
@@ -335,9 +335,9 @@ def parse_frame(frame_text: str) -> dict[str, str]:
     """Pull the four sections out of ``seat-frame.md``'s rendered block.
 
     The frame file is the specification. Copying its bytes into this module
-    would make two representations of one fact that must agree, which is the
-    drift surface C3 and C16 were both written against - so the invariant bytes
-    are read from the frame at render time and never restated here.
+    would make two representations of one fact that must agree, which is a
+    drift surface by construction - so the invariant bytes are read from the
+    frame at render time and never restated here.
     """
     fenced = re.search(r"^```md[ \t]*\n(.*?)^```", frame_text, re.S | re.M)
     if fenced is None:
@@ -479,7 +479,7 @@ def resolve_base(raw_base: str, root: Optional[Path], manifest_dir: Path) -> Pat
 def channel_paths(channel: dict, base: Path) -> list[Path]:
     """Resolve one channel against one item base.
 
-    Containment beats link-detection (C13): every hit is resolved and confirmed
+    Containment beats link-detection: every hit is resolved and confirmed
     inside the resolved base rather than tested for link-ness, which misses
     junctions and hardlinks.
     """
@@ -901,8 +901,8 @@ def render(frame_sections: dict[str, str], composition: dict, items: list[dict],
         prompt = "\n\n".join(sections[key] for key in SECTION_ORDER) + "\n"
 
         # Character-for-character, checked against what was actually written
-        # rather than against what the writer intended (C15: observe the
-        # property, not a proxy for it).
+        # rather than against what the writer intended: observe the property,
+        # not a proxy for it.
         for item in items:
             expected = f"\n{item['id']}: {item['statement']}\n"
             if expected not in prompt:

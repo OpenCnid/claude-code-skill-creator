@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Validate a workspace's graded artifacts against contracts C1 (layout) and C3
-(field names), before anything downstream trusts them.
+Validate a workspace's graded artifacts - layout and field names - before
+anything downstream trusts them.
 
 Why this exists: aggregate_benchmark.py reads grading data with .get() chains
 that used to fall back to zero, e.g.
@@ -28,11 +28,11 @@ Placement is now checked as hard as content:
     to run-1" for that shape too, which asserted a read that did not happen:
     the run directories win and the flat file is discarded (R8);
   * `summary.failed` is cross-checked, and `passed + failed + abstained ==
-    total == len(expectations)` is enforced (contracts C3, C16);
+    total == len(expectations)` is enforced;
   * `pass_rate` must be a JSON number in [0.0, 1.0], or `null` when nothing was
     graded - a string or a percentage is an error, not a coercion;
-  * verdicts are ternary (contract C16). `verdict` is one of `pass`, `fail`,
-    `abstain`; `abstainReason` is required when and only when the verdict is
+  * verdicts are ternary. `verdict` is one of `pass`, `fail`, `abstain`;
+    `abstainReason` is required when and only when the verdict is
     `abstain`, and is one of the three typed reasons - `jurisdiction`,
     `evidence`, `underspecified` - each of which names a different repair. The
     retired boolean `passed` is detected by name and reported as
@@ -50,11 +50,11 @@ Usage:
 error. Warnings alone do not fail the run.
 
 With --json the machine-readable report goes to stdout *alone*; every
-human-readable line goes to stderr (contract C6).
+human-readable line goes to stderr.
 
-Severity (contract C12). Which findings are errors and which are warnings is
-not decided here. `scripts.utils.WORKSPACE_CONDITIONS` is the one severity
-table and `preflight`, `aggregate_benchmark` and this script all report from
+Severity. Which findings are errors and which are warnings is not decided here.
+`scripts.utils.WORKSPACE_CONDITIONS` is the one severity table and
+`preflight`, `aggregate_benchmark` and this script all report from
 it, tagging each finding `C12:<condition>=<severity>` so the three verdicts can
 be diffed rather than trusted. What this script *does* with a severity is its
 own business - it exits non-zero on errors and proceeds on warnings, where
@@ -83,7 +83,7 @@ from scripts.utils import (
 )
 
 # --------------------------------------------------------------------------
-# Contract C1 / C2 - the one canonical layout every reader here agrees on.
+# The one canonical layout every reader here agrees on.
 # --------------------------------------------------------------------------
 
 CANONICAL_LAYOUT = """\
@@ -101,15 +101,15 @@ ITERATION_DIR_RE = re.compile(r"^iteration-(\d+)$")
 EVAL_DIR_RE = re.compile(r"^eval-(\d+)(?:-([a-z0-9]+(?:-[a-z0-9]+)*))?$")
 RUN_DIR_RE = re.compile(r"^run-(\d+)$")
 
-# Contract C1 enumerates three config names. Three more show up in the wild and
-# are understood; anything else is discovered dynamically but flagged, because
-# an unrecognised name is how a delta ends up pointing the wrong way (C5).
+# Three config names are canonical. Three more show up in the wild and are
+# understood; anything else is discovered dynamically but flagged, because an
+# unrecognised name is how a delta ends up pointing the wrong way.
 CANONICAL_CONFIGS = ("with_skill", "without_skill", "old_skill")
 EXTRA_KNOWN_CONFIGS = ("new_skill", "baseline", "no_skill", "skill")
 RECOGNIZED_CONFIGS = CANONICAL_CONFIGS + EXTRA_KNOWN_CONFIGS
 
-# Contract C5: role, never sorted(). `with_skill` beat `old_skill` to primary
-# only by the accident that '_' (0x5F) sorts before 'o' (0x6F).
+# Roles are assigned by name, never by sorted(). `with_skill` beat `old_skill`
+# to primary only by the accident that '_' (0x5F) sorts before 'o' (0x6F).
 BASELINE_ROLE_CONFIGS = ("without_skill", "old_skill", "baseline", "no_skill")
 PRIMARY_ROLE_CONFIGS = ("with_skill", "new_skill", "skill")
 
@@ -126,15 +126,15 @@ ROLE_CONFIGS = tuple(dict.fromkeys(PRIMARY_ROLE_CONFIGS + BASELINE_ROLE_CONFIGS)
 # Directories that live beside config directories and are never configs.
 NON_CONFIG_DIRS = ("outputs", "inputs", "files", "__pycache__")
 
-ABSENT = "—"  # em dash - what an unknown measurement renders as (C4)
+ABSENT = "—"  # em dash - what an unknown measurement renders as
 
 
 # --------------------------------------------------------------------------
-# Contract C16 - verdicts are ternary, and "I cannot tell" is not a failure.
+# Verdicts are ternary, and "I cannot tell" is not a failure.
 #
 # These four names are the vocabulary. They live here, once, and
 # `aggregate_benchmark` imports them rather than restating them - a second copy
-# of a closed enum is the drift surface C12 was written about.
+# of a closed enum is a drift surface by construction.
 # --------------------------------------------------------------------------
 
 VERDICTS = ("pass", "fail", "abstain")
@@ -163,8 +163,8 @@ VERDICTS = ("pass", "fail", "abstain")
 #: cheapest one to write, and the ladder makes it the earned answer rather than
 #: the residue.
 #:
-#: The third reason was found from the ground up rather than designed in
-#: (contract C16): on a sixteen-item corpus, two independent blind readers
+#: The third reason was found from the ground up rather than designed in:
+#: on a sixteen-item corpus, two independent blind readers
 #: disagreed on exactly one item, and it was a comparative claim carrying an
 #: undefined term - one ruled it decidable, the other said no judge could reach
 #: it. Under the procedure that split is a disagreement about question 2, which
@@ -192,7 +192,7 @@ ABSTAIN_REASON_MEANINGS = {
 #: previous contract they landed in it as failures, so an expectation nobody
 #: could check counted as evidence against the skill.
 PASS_RATE_RULE = ("`pass_rate = passed / (passed + failed)`, null when that "
-                  "denominator is zero - per contract C4 a rate over nothing "
+                  "denominator is zero - a rate over nothing "
                   "is not zero")
 
 #: Printed whenever a file is found in the shape the previous contract defined.
@@ -203,8 +203,8 @@ PREVIOUS_CONTRACT_MESSAGE = """\
 expectations[]: {count} entr{y} carr{ies} the boolean `passed` and no `verdict`. \
 That is the PREVIOUS grading contract, not a malformed file.
 
-      Contract C16 replaced it: a verdict is now one of `pass`, `fail`, \
-`abstain`, and
+      The current contract replaced it: a verdict is now one of `pass`, \
+`fail`, `abstain`, and
       `passed` was REMOVED rather than kept alongside - two representations of \
 one fact
       that must agree are a drift surface.
@@ -239,8 +239,8 @@ def reason_menu() -> str:
     """Every typed reason with its meaning, for a message that names them all.
 
     Generated from `ABSTAIN_REASON_MEANINGS` rather than written out, because
-    the enum grew once (contract C16's third reason) and a hand-written menu is
-    exactly the copy that stays at two while the enum is at three.
+    the enum grew once (the third reason was added later) and a hand-written
+    menu is exactly the copy that stays at two while the enum is at three.
     """
     items = [f"'{reason}' ({meaning})"
              for reason, meaning in ABSTAIN_REASON_MEANINGS.items()]
@@ -261,8 +261,9 @@ def compute_pass_rate(passed: int, failed: int):
     """`passed / (passed + failed)`, or None when nothing was graded.
 
     The one implementation. `aggregate_benchmark` imports it; so do the tests.
-    Returning 0.0 for an all-abstain run is the exact defect C16 closes - it is
-    a confident number over data that does not support it.
+    Returning 0.0 for an all-abstain run is the exact defect the abstain
+    verdict closes - it is a confident number over data that does not
+    support it.
     """
     graded = passed + failed
     if graded <= 0:
@@ -336,7 +337,7 @@ def read_json_file(path: Path):
     except UnicodeError as e:
         # UnicodeDecodeError is a ValueError, NOT an OSError and NOT a
         # JSONDecodeError - the usual `except (json.JSONDecodeError, OSError)`
-        # lets it escape as a bare traceback (contract C7).
+        # lets it escape as a bare traceback.
         return None, f"could not decode as UTF-8: {e}"
     except OSError as e:
         return None, f"could not read file: {e}"
@@ -348,7 +349,7 @@ def read_json_file(path: Path):
 
 
 # --------------------------------------------------------------------------
-# Layout classification (contract C1 / C2)
+# Layout classification
 # --------------------------------------------------------------------------
 
 def is_eval_dir(path: Path) -> bool:
@@ -390,8 +391,8 @@ def classify_grading_path(path: Path, root: Path) -> dict:
         # The pre-contract aggregator also accepted <dir>/runs/eval-*. Still
         # readable, but it is not the canonical form.
         warnings.append(
-            "sits under a `runs/` directory; contract C1 puts eval directories "
-            "directly under the iteration directory"
+            "sits under a `runs/` directory; the canonical layout puts eval "
+            "directories directly under the iteration directory"
         )
         base = root / "runs"
         rel_parts = rel_parts[1:]
@@ -444,13 +445,13 @@ def classify_grading_path(path: Path, root: Path) -> dict:
 
     if not EVAL_DIR_RE.match(eval_name):
         warnings.append(
-            f"eval directory `{eval_name}` is not `eval-<ID>-<slug>` (contract "
-            f"C2); it is reachable only because it carries an eval_metadata.json"
+            f"eval directory `{eval_name}` is not `eval-<ID>-<slug>`; it is "
+            f"reachable only because it carries an eval_metadata.json"
         )
     elif "-" not in eval_name[len("eval-"):]:
         warnings.append(
-            f"eval directory `{eval_name}` has no descriptive slug; contract C2 "
-            f"wants `{eval_name}-<descriptive-slug>`"
+            f"eval directory `{eval_name}` has no descriptive slug; the expected "
+            f"form is `{eval_name}-<descriptive-slug>`"
         )
 
     if config in NON_CONFIG_DIRS:
@@ -464,7 +465,7 @@ def classify_grading_path(path: Path, root: Path) -> dict:
         warnings.append(
             f"configuration `{config}` is not one of "
             f"{', '.join(CANONICAL_CONFIGS)}; aggregation cannot infer whether "
-            f"it is the primary or the baseline (contract C5) and will require "
+            f"it is the primary or the baseline, and will require "
             f"--primary/--baseline"
         )
 
@@ -473,7 +474,8 @@ def classify_grading_path(path: Path, root: Path) -> dict:
         # occupies that slot. When the config directory ALSO holds run-<K>/,
         # every reader takes the run directories and drops this file on the
         # floor - so reporting "readers normalize it to run-1" would assert a
-        # read that did not happen. Contract C12 has a separate row for it.
+        # read that did not happen. The severity table has a separate row for
+        # it.
         config_dir = base / eval_name / config
         shadowing = []
         if config_dir.is_dir():
@@ -525,11 +527,11 @@ def classify_grading_path(path: Path, root: Path) -> dict:
 
 
 # --------------------------------------------------------------------------
-# Content validation (contract C3)
+# Content validation
 # --------------------------------------------------------------------------
 
 def _check_expectation(exp, idx, errors):
-    """Validate one entry of the expectations array (contracts C3, C16)."""
+    """Validate one entry of the expectations array."""
     where = f"expectations[{idx}]"
 
     if not isinstance(exp, dict):
@@ -548,7 +550,7 @@ def _check_expectation(exp, idx, errors):
                 f"{where}: has '{wrong}' where the contract has 'verdict'. "
                 f"Renaming is not the whole fix - 'verdict' is one of 'pass', "
                 f"'fail', 'abstain', not a boolean, and there is no boolean it "
-                f"can be spelled as (contract C16)"
+                f"can be spelled as"
             )
 
     if "text" not in exp:
@@ -559,7 +561,7 @@ def _check_expectation(exp, idx, errors):
         errors.append(f"{where}.text: is empty - the viewer renders a bare "
                       "checkmark with no statement beside it")
 
-    # ---- verdict (contract C16) -----------------------------------------
+    # ---- verdict --------------------------------------------------------
     legacy_boolean = "passed" in exp
     if legacy_boolean and "verdict" not in exp:
         # The file-level message already spelled out the migration; this line
@@ -567,14 +569,14 @@ def _check_expectation(exp, idx, errors):
         # not repeat the whole mapping 40 times.
         errors.append(
             f"{where}: carries the retired boolean 'passed' and no 'verdict' "
-            f"(contract C16 - the migration is spelled out above)"
+            f"(the migration is spelled out above)"
         )
     else:
         if legacy_boolean:
             errors.append(
                 f"{where}: carries BOTH 'verdict' and the retired boolean "
-                f"'passed'. Contract C16 REMOVED 'passed'; it did not keep it "
-                f"alongside 'verdict'. Two representations of one fact that "
+                f"'passed'. The current contract REMOVED 'passed'; it did not "
+                f"keep it alongside 'verdict'. Two representations of one fact that "
                 f"must agree drift the first time either is edited. Delete "
                 f"'passed'"
             )
@@ -583,7 +585,7 @@ def _check_expectation(exp, idx, errors):
         if "verdict" not in exp:
             errors.append(
                 f"{where}: missing required field 'verdict' - one of "
-                f"{', '.join(repr(v) for v in VERDICTS)} (contract C16)"
+                f"{', '.join(repr(v) for v in VERDICTS)}"
             )
         elif isinstance(verdict, bool) or not isinstance(verdict, str):
             hint = ""
@@ -656,7 +658,7 @@ def _check_summary(summary, expectations, errors):
         if field not in summary:
             hint = ""
             if field == "abstained":
-                hint = (f" - contract C16 added it: `total` counts every "
+                hint = (f" - `total` counts every "
                         f"expectation, `abstained` counts the ones no verdict "
                         f"was reached on, and {PASS_RATE_RULE}")
             errors.append(f"summary: missing required field '{field}'{hint}")
@@ -707,14 +709,14 @@ def _check_summary(summary, expectations, errors):
                     if rate > 1 else "")
             errors.append(f"summary.pass_rate: {rate} is outside [0.0, 1.0]{hint}")
 
-    # Contract C16: passed + failed + abstained == total == len(expectations).
+    # passed + failed + abstained == total == len(expectations).
     if counts_known and passed + failed + abstained != total:
         errors.append(
             f"summary: passed ({passed}) + failed ({failed}) + abstained "
             f"({abstained}) = {passed + failed + abstained}, but total is {total}"
         )
 
-    # Contract C4 inside C16: the denominator excludes abstentions, and a rate
+    # The denominator excludes abstentions, and a rate
     # over an empty denominator is null. `0.0` there is a measurement nobody
     # made - it is the same lie as a benchmark of zeros over no runs.
     if denominator is not None and "pass_rate" in summary:
@@ -777,7 +779,7 @@ def _check_summary(summary, expectations, errors):
         # `summary.failed` was the cross-check that was missing before: a file
         # claiming {"passed":1,"failed":0,"total":3} over 3 expectations
         # validated clean and the viewer rendered "1 passed, 0 failed of 3".
-        # `abstained` is the same check on the field C16 added.
+        # `abstained` is the same check on the abstention count.
         claimed = whole(field)
         if claimed is not None and claimed != actual[field]:
             errors.append(
@@ -824,7 +826,7 @@ def validate_grading_file(path: Path):
         if "assertions" in data:
             errors.append(
                 "has 'assertions' but grading.json's graded results are called "
-                "'expectations' (contract C3: 'assertions' is the input set an "
+                "'expectations'. 'assertions' is the input set an "
                 "author writes into eval_metadata.json; 'expectations' is what "
                 "the grader returns)"
             )
@@ -854,12 +856,12 @@ def validate_grading_file(path: Path):
         _check_summary(data["summary"], expectations, errors)
 
     if "timing" in data:
-        # Contract C3: graders do not write a timing block. Ignorable rather
+        # Graders do not write a timing block. Ignorable rather
         # than corrupting now that the aggregator reads timing.json only, so a
         # warning - but it is the block that used to gate the token column
         # closed and silently substitute a character count for it.
         warnings.append(
-            "carries a 'timing' block; contract C3 puts timing only in the "
+            "carries a 'timing' block; timing belongs only in the "
             "sibling timing.json, and aggregation ignores this block"
         )
 
@@ -867,7 +869,7 @@ def validate_grading_file(path: Path):
 
 
 def validate_timing_file(path: Path):
-    """Validate a timing.json (contract C3). Returns (errors, warnings)."""
+    """Validate a timing.json. Returns (errors, warnings)."""
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -886,7 +888,7 @@ def validate_timing_file(path: Path):
         if field not in data:
             warnings.append(
                 f"missing '{field}'; that cell renders as {ABSENT} (unknown), "
-                f"never 0 (contract C4)"
+                f"never 0"
             )
             continue
         value = data[field]
@@ -902,7 +904,7 @@ def validate_timing_file(path: Path):
 
 
 def validate_eval_metadata(path: Path, dir_eval_id=None):
-    """Validate an eval_metadata.json (contracts C2, C3)."""
+    """Validate an eval_metadata.json."""
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -924,7 +926,7 @@ def validate_eval_metadata(path: Path, dir_eval_id=None):
     elif dir_eval_id is not None and eval_id != dir_eval_id:
         errors.append(
             f"eval_id is {eval_id} but the directory name says {dir_eval_id}; "
-            f"contract C2 requires them to be equal"
+            f"the two must be equal"
         )
 
     name = data.get("eval_name")
@@ -943,7 +945,7 @@ def validate_eval_metadata(path: Path, dir_eval_id=None):
 
     if "assertions" not in data:
         warnings.append(
-            "missing 'assertions' (contract C3: the input set an author writes; "
+            "missing 'assertions' (the input set an author writes; "
             "'expectations' is the graded result in grading.json)"
         )
     elif not isinstance(data["assertions"], list):
@@ -953,7 +955,7 @@ def validate_eval_metadata(path: Path, dir_eval_id=None):
     if "expectations" in data:
         warnings.append(
             "carries 'expectations'; in eval_metadata.json the input set is "
-            "called 'assertions' (contract C3)"
+            "called 'assertions'"
         )
 
     return errors, warnings
@@ -1021,10 +1023,10 @@ def validate_tree(target: Path) -> dict:
     warning_count = 0
 
     def note(condition: str, detail: str, errors: list, warnings: list) -> None:
-        """File the finding at contract C12's severity - never at one we pick.
+        """File the finding at the shared table's severity - never at one we pick.
 
         `errors` vs `warnings` is decided by the shared table and by nothing in
-        this file. That is the whole point of C12: three components used to make
+        this file. That is the whole point: three components used to make
         this choice independently, and made it three different ways.
         """
         line = condition_line(condition, detail)
@@ -1066,7 +1068,8 @@ def validate_tree(target: Path) -> dict:
                  errors, warnings)
         elif placement["kind"] == "legacy_flat":
             note(LEGACY_FLAT_LAYOUT,
-                 f"placement: contract C1 wants\n      {placement['expected']}",
+                 f"placement: the canonical layout wants\n"
+                 f"      {placement['expected']}",
                  errors, warnings)
 
         if placement["kind"] in ("canonical", "legacy_flat") and placement["config"]:
@@ -1131,7 +1134,7 @@ def validate_tree(target: Path) -> dict:
         error_count += len(errors)
         warning_count += len(warnings)
 
-    # ---- workspace-level conditions (contract C12) ----------------------
+    # ---- workspace-level conditions -------------------------------------
     # These are properties of the tree, not of any one file, and the other two
     # components report them too. Same conditions, same severities, same
     # sentences - the components differ only in what they do next.
@@ -1159,14 +1162,14 @@ def validate_tree(target: Path) -> dict:
     # Pairing. `validate_grading` has no notion of primary/baseline - roles are
     # resolved in `aggregate_benchmark`, which imports this module, so asking
     # for them here would be a cycle. Comparing every configuration against the
-    # union is the same check for the two-configuration case that C5 defines,
-    # and stricter for three, which is the safe direction.
+    # union is the same check for the two-configuration case, and stricter for
+    # three, which is the safe direction.
     configs = sorted({config for config, _ in read_runs})
 
     # A workspace holding only the baseline. `aggregate_benchmark` will set
     # `primary: null` rather than relabel the survivor, and this says why
     # before anyone reads a benchmark that is about the wrong configuration.
-    # The mirror case - only the primary - is contract C5's legitimate
+    # The mirror case - only the primary - is the legitimate
     # single-configuration record and is not this condition.
     if (len(configs) == 1 and configs[0] in BASELINE_ROLE_CONFIGS
             and any(slot["surviving"] for slot in read_runs.values())):
@@ -1260,7 +1263,7 @@ def main(argv=None) -> int:
         prog="python -m scripts.validate_grading",
         description=(
             "Validate grading.json files (and the timing.json / "
-            "eval_metadata.json they depend on) against contracts C1 and C3."
+            "eval_metadata.json they depend on) for layout and field names."
         ),
     )
     parser.add_argument(
@@ -1277,7 +1280,7 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    # Contract C6: with --json, stdout carries the payload and nothing else.
+    # With --json, stdout carries the payload and nothing else.
     human = sys.stderr if args.json else sys.stdout
 
     if not args.path.exists():
@@ -1292,7 +1295,7 @@ def main(argv=None) -> int:
         message = (
             f"No grading.json found anywhere under {args.path}.\n"
             f"{condition_line(ZERO_RUNS)}\n"
-            f"Expected layout (contract C1):\n\n{CANONICAL_LAYOUT}\n"
+            f"Expected layout:\n\n{CANONICAL_LAYOUT}\n"
         )
         print(message, file=human)
         if args.json:
@@ -1329,7 +1332,7 @@ def main(argv=None) -> int:
         print(
             f"{counts['errors']} error(s), {counts['warnings']} warning(s). "
             f"Fix these before aggregating.\n"
-            f"Expected layout (contract C1):\n\n{CANONICAL_LAYOUT}\n",
+            f"Expected layout:\n\n{CANONICAL_LAYOUT}\n",
             file=human,
         )
     elif counts["warnings"]:

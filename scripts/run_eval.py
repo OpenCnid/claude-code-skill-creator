@@ -534,7 +534,7 @@ def estimate_cost_per_probe(model: str | None) -> tuple[float, str]:
 def read_confirmation(prompt: str) -> str | None:
     """Ask on stdin. Return the typed answer, or ``None`` if nothing can be read.
 
-    Contract C14. **Never infer interactivity from ``isatty()`` alone.** On
+    **Never infer interactivity from ``isatty()`` alone.** On
     Windows ``isatty()`` returns ``True`` for ``NUL`` and for
     ``subprocess.DEVNULL``, so ``if not sys.stdin.isatty()`` does not detect a
     redirected stream: ``input()`` then runs against a stream already at EOF and
@@ -938,7 +938,7 @@ def run_eval(
             )
             status = "scored"
         else:
-            # C4: absent data is absent, never zero. No verdict at all.
+            # Absent data is absent, never zero. No verdict at all.
             trigger_rate = None
             did_pass = None
             status = "errored"
@@ -1032,7 +1032,7 @@ def check_skill_md_encoding(skill_path: Path) -> None:
     command file and what would be handed to the optimizer as the skill body, so
     the measurement would be of a description the author never wrote.
 
-    This check is a no-op once utils.py passes encoding="utf-8" (contract C7),
+    This check is a no-op once utils.py passes encoding="utf-8",
     or under PYTHONUTF8=1.
     """
     md = skill_path / "SKILL.md"
@@ -1064,7 +1064,7 @@ def check_skill_md_encoding(skill_path: Path) -> None:
             f"       platform codec, silently corrupting {sum(1 for a, b in zip(content, truth) if a != b)}+ characters.\n"
             f"       Measuring this would score a description the author never wrote.\n"
             f"Fix:   scripts/utils.parse_skill_md must decode UTF-8 explicitly rather\n"
-            f"       than through the locale codec (contract C7). As a stopgap, re-run\n"
+            f"       than through the locale codec. As a stopgap, re-run\n"
             f"       with PYTHONUTF8=1 set.",
             file=sys.stderr,
         )
@@ -1105,7 +1105,7 @@ def add_probe_arguments(parser: argparse.ArgumentParser) -> None:
                              "and plugins so an installed copy of the skill under test "
                              "cannot shadow the probe. Empty string to inherit everything.")
     parser.add_argument("--permission-mode", default=None,
-                        help="Passed to claude -p (e.g. 'plan'). This is the C8 blast-radius "
+                        help="Passed to claude -p (e.g. 'plan'). This is the blast-radius "
                              "knob the spend projection points at: probes otherwise inherit "
                              "your permission settings and can act. Unset by default because "
                              "it changes model behaviour and so breaks comparability with "

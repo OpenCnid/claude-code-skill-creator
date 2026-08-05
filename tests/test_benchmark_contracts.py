@@ -143,7 +143,7 @@ class TestFlagshipRepro(WorkspaceCase):
         proc = self.script("preflight", self.root / "repro-flat")
         self.assertEqual(proc.returncode, 1, self.combined(proc))
         out = self.combined(proc)
-        self.assertIn("Contract C1 requires a run level", out)
+        self.assertIn("canonical layout requires a run level", out)
         self.assertIn("run-1", out, "the message must name the path expected")
         self.assertIn("with_skill", out, "the message must name the path found")
 
@@ -315,7 +315,7 @@ class TestAbsentNotZero(WorkspaceCase):
         self.assertNotIn("| 0 ± 0 ", md)
 
     def test_permanently_unmeasurable_keys_are_absent_not_null(self):
-        """Contract C10: nothing produces these, so the requirement is gone.
+        """Nothing produces these, so the requirement is gone.
 
         `output_chars`, `tool_calls`, and `errors` were sourced from
         `execution_metrics`, fed by a `metrics.json` no agent ever wrote. A
@@ -513,7 +513,7 @@ class TestPlacement(WorkspaceCase):
         self.assertIn("legacy-flat", out)
 
     def test_aggregation_names_a_stray_eval_root_grading(self):
-        """Contract C12 makes undiscoverable grading an error, everywhere.
+        """Undiscoverable grading is an error, everywhere.
 
         This used to be a layout *warning* at exit 0 in the aggregator while
         `validate_grading` failed the identical tree - one condition, two
@@ -651,7 +651,8 @@ class TestCliSurface(WorkspaceCase):
     def test_preflight_passes_a_conforming_workspace(self):
         proc = self.script("preflight", self.root / "canonical")
         self.assertEqual(proc.returncode, 0, self.combined(proc))
-        self.assertIn("conforms to C1/C2/C3", self.combined(proc))
+        self.assertIn("conforms to the expected layout, naming and fields",
+                      self.combined(proc))
 
     def test_preflight_accepts_an_iteration_directory_directly(self):
         proc = self.script("preflight", self.iteration("canonical"))
@@ -698,7 +699,7 @@ class TestCliSurface(WorkspaceCase):
 
 
 # --------------------------------------------------------------------------
-# Contract C16: verdicts are ternary
+# Verdicts are ternary
 # --------------------------------------------------------------------------
 
 class TestTernaryVerdicts(unittest.TestCase):
@@ -902,7 +903,7 @@ class TestTernaryVerdicts(unittest.TestCase):
 
 
 class TestAbstentionReachesTheBenchmark(WorkspaceCase):
-    """Contract C16's consequence for the artifact that carries the number."""
+    """Ternary verdicts' consequence for the artifact carrying the number."""
 
     def test_an_all_abstain_workspace_produces_null_everywhere_a_rate_appears(self):
         proc = self.aggregate("all-abstained")
@@ -998,7 +999,7 @@ class TestAbstentionReachesTheBenchmark(WorkspaceCase):
 
 
 class TestEveryReasonIsDefinedWhereItIsCounted(WorkspaceCase):
-    """Contract C16 - the legend and the counts are one reason set.
+    """The legend and the counts are one reason set.
 
     `_fmt_abstention` has always printed whatever the `reasons` block held,
     and the `## Abstentions` legend under it was a hand-written sentence

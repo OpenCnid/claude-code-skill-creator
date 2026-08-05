@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI-contract tests for scripts/quick_validate.py (contract C6).
+"""CLI-contract tests for scripts/quick_validate.py.
 
 Run from the skill root::
 
