@@ -25,25 +25,23 @@ it" — do that. The loop is a default, not a gate.
 
 ## Read this before you trust a number
 
-The failure mode that costs people most here is not a crash. It is a measurement that looks fine and
-means nothing — a benchmark computed from zero discovered runs, a trigger score from probes that
-never executed, a token column derived from character counts.
+The costliest failure here is not a crash but a measurement that looks fine and means nothing — a
+benchmark computed from zero discovered runs, a trigger score from probes that never executed, a
+token column derived from character counts.
 
 The tooling refuses instead of guessing: zero runs exits non-zero, unmeasured values render `—` and
 never `0`, an errored probe is recorded as an error and not as a clean negative. So **if a number
-looks surprising, check it came from data before acting on it** — and when you report results, say
-what was measured and what wasn't. "The benchmark shows no difference" and "the benchmark found no
-runs" are different sentences, and only one is about the skill.
+looks surprising, check it came from data before acting on it**, and when you report results say what
+was measured and what wasn't. "The benchmark shows no difference" and "the benchmark found no runs"
+are different sentences, and only one is about the skill.
 
 ## Talking to the person you're helping
 
 The people who use this span a wide range — some write software for a living, some opened a terminal
-for the first time last week. Both are doing something real and neither needs to be talked down to.
-
-Read the cues in how they write and match them. Rough calibration: "evaluation" and "benchmark" are
-usually fine; "JSON", "assertion", and "held-out set" want either evidence they know the term or a
-half-sentence of explanation the first time. Explaining briefly costs almost nothing; a term that
-lands as noise costs you their attention.
+for the first time last week. Read the cues in how they write and match them. Rough calibration:
+"evaluation" and "benchmark" are usually fine; "JSON", "assertion", and "held-out set" want either
+evidence they know the term or a half-sentence of explanation the first time. Explaining briefly
+costs almost nothing; a term that lands as noise costs you their attention.
 
 ---
 
@@ -53,8 +51,8 @@ lands as noise costs you their attention.
 
 The conversation you're already in often contains the answer — if they said "turn this into a
 skill," the workflow is right there in the history. Pull out the steps, the tools used, the
-corrections they made along the way, the shape of the input and output. Then fill the gaps with
-them rather than guessing.
+corrections along the way, the shape of the input and output, then fill the gaps with them rather
+than guessing.
 
 What you need before drafting:
 
@@ -69,20 +67,18 @@ Ask about edge cases, formats, example files, and what "done" means, before writ
 
 ### Draft it
 
-Write the SKILL.md. `references/frontmatter.md` has the field-by-field detail; the two that carry
-the weight are:
+Write the SKILL.md. `references/frontmatter.md` has the field-by-field detail and the YAML hazards;
+the two that carry the weight are:
 
 - **`name`** — kebab-case, and it should **match the directory name**. Claude Code takes the
-  invocation name from the directory and treats this field as display-only, so a mismatch means the
-  skill answers to a name its own frontmatter doesn't state. Uploading and packaging both require
-  them to agree.
+  invocation name from the directory and treats this field as display-only; uploading and packaging
+  both require them to agree.
 - **`description`** — the entire mechanism by which Claude decides to consult the skill. Nothing
   else in the file participates in that decision.
 
-Quote the description. An unquoted colon-space makes YAML parse it as a nested mapping, and the
-failure mode is nasty: the body loads with empty metadata, so typing `/your-skill` works while
-auto-triggering silently never fires. People lose afternoons to this, concluding the description is
-badly worded when it was never read at all.
+Quote the description. An unquoted colon-space makes YAML parse it as a nested mapping, and the body
+then loads with empty metadata — so typing `/your-skill` works while auto-triggering silently never
+fires, and you go tune a description that was never read at all.
 
 ### Validate before you spend anything
 
@@ -90,16 +86,14 @@ badly worded when it was never read at all.
 python -m scripts.quick_validate <path-to-skill>
 ```
 
-Run it the moment a draft exists, and again after any frontmatter edit. It takes a second, it
-reports every problem at once rather than the first, and it names which target each finding came
-from.
+Run it the moment a draft exists, and again after any frontmatter edit. It reports every problem at
+once rather than the first, and names which target each finding came from.
 
-That last part matters. There is no single frontmatter spec — Claude Code recognizes 31 keys and
-ignores unknown ones, the portable agentskills.io set is 6 keys and rejects the rest, and the
-description caps differ by an order of magnitude across surfaces (200 characters on claude.ai). A
-skill can be perfectly valid for where it's going and still fail a checker aimed somewhere else. Use
-`--target` to say where it's going, and read each finding as "wrong *for this target*" rather than
-"wrong." `references/frontmatter.md` has the per-target table.
+That last part matters, because there is no single frontmatter spec — Claude Code recognizes 31 keys
+and ignores unknown ones, the portable agentskills.io set is 6 keys and rejects the rest, and
+claude.ai caps descriptions at 200 characters. A skill can be valid for where it's going and still
+fail a checker aimed somewhere else, so use `--target` and read each finding as "wrong *for this
+target*" rather than "wrong." `references/frontmatter.md` has the per-target table.
 
 ### What makes a skill work
 
@@ -112,9 +106,9 @@ skill-name/
 ```
 
 **Only a prefix of SKILL.md survives.** When the conversation compacts, Claude Code re-attaches
-roughly the **first 19,900 characters** of each invoked skill. It's a character slice — it cuts
-mid-sentence, with no marker. Anything past it is present on the first invocation and gone by the
-time a long session needs it.
+roughly the **first 19,900 characters** of each invoked skill. It's a character slice: it cuts
+mid-sentence, with no marker, and what falls off is gone at exactly the moment a long session needs
+it.
 
 So character count is the check that matters, and **order is a design decision**:
 
@@ -122,8 +116,8 @@ So character count is the check that matters, and **order is a design decision**
 python -c "print(len(open('SKILL.md',encoding='utf-8').read()))"
 ```
 
-Count characters, not bytes — `wc -c` reports bytes, and for a skill with substantial non-ASCII
-content the two diverge enough to send you cutting material that was never at risk.
+Count characters, not bytes — `wc -c` reports bytes, and substantial non-ASCII content makes the two
+diverge enough to send you cutting material that was never at risk.
 
 Put the load-bearing workflow early. Push conditional branches, environment-specific instructions, and
 reference material into `references/`, where it costs nothing until read and is never truncated.
@@ -133,10 +127,9 @@ Moving content out is close to free — say clearly in SKILL.md *when* to go rea
 description listing budget, what sub-agents inherit, and what skills are genuinely bad at.
 
 **Write it for a model that will reason about it.** Explain *why* something matters instead of
-issuing a rule. A model that understands the reason handles the case you didn't anticipate; one
-following a bare imperative doesn't. If you find yourself writing ALWAYS or NEVER in caps, that's
-usually a sign you haven't yet articulated the reason — and the reason is more useful than the
-emphasis.
+issuing a rule: a model that understands the reason handles the case you didn't anticipate, and one
+following a bare imperative doesn't. Reaching for ALWAYS or NEVER in caps usually means you haven't
+articulated the reason yet, and the reason is more useful than the emphasis.
 
 Skills must not do anything the person would be surprised by if you described it plainly. Roleplay
 and persona skills are fine. Anything that quietly exfiltrates, escalates, or misleads is not.
@@ -171,8 +164,8 @@ The layout is fixed, and every tool reads exactly this:
                 └── timing.json
 ```
 
-`run-<K>` is always there even for one run. That level is what lets repeated runs mean anything, and
-its absence used to make the aggregator silently find nothing.
+That `run-<K>` level is what lets repeated runs mean anything, and its absence used to make the
+aggregator silently find nothing.
 
 ### 1. Spawn everything at once
 
@@ -192,27 +185,27 @@ The baseline depends on what you're doing:
 
 - **New skill** → no skill at all, same prompt, into `without_skill/run-1/`.
 - **Existing skill** → the old version, into `old_skill/run-1/`. **Snapshot it before your first
-  edit** (`cp -r`, or `Copy-Item -Recurse` in PowerShell). Once you've edited in place there is no
-  baseline left to recover and the comparison is gone.
+  edit** (`cp -r`, or `Copy-Item -Recurse` in PowerShell); edit in place and there is no baseline
+  left to recover.
 
-Write an `eval_metadata.json` per test case, with a descriptive `eval_name`. Do it for every new or
-changed eval — don't assume they carry over between iterations.
+Write an `eval_metadata.json` per test case, with a descriptive `eval_name`, for every new or changed
+eval — they don't carry over between iterations.
 
 ### 2. While they run, draft assertions
 
-Don't idle. Write the assertions and explain them to the person. Good ones are objectively
-checkable and named so they read clearly in the results — someone glancing at the table should
-understand what each one checked. Skills with subjective output (writing style, visual design) are
-better judged by eye; don't force assertions onto them.
+Don't idle. Write the assertions and explain them to the person. Good ones are objectively checkable
+and named so someone glancing at the results table understands what each one checked. Skills with
+subjective output (writing style, visual design) are better judged by eye; don't force assertions
+onto them.
 
 ### 3. As runs finish, capture timing
 
 Each completion notification carries `total_tokens` and `duration_ms`. Write them to `timing.json`
 in that run's directory immediately — this is the only moment that data exists.
 
-If you missed a notification, **leave the file out**. A missing `timing.json` renders as `—`
-(unmeasured). Inventing plausible numbers puts fabrications in a column labelled as measurement,
-and nothing downstream can tell the difference.
+If you missed a notification, **leave the file out**: a missing `timing.json` renders as `—`
+(unmeasured), while invented numbers put fabrications in a column labelled as measurement and
+nothing downstream can tell the difference.
 
 ### 4. Check the workspace before spending more
 
@@ -230,30 +223,26 @@ python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name
 ```
 
 Grade each run with a **composed panel** — three seats, each answering one question, composed fresh
-for this skill's domain. `references/grading-panel.md` has the six steps and the scripts. It costs
-about six sub-agents per graded run against one, so say that out loud before spending it: use the
-panel when the number will be acted on, and the single-judge path in `agents/grader.md` when you are
-sanity-checking your own draft.
+for this skill's domain. `references/grading-panel.md` has the six steps, the scripts, and the spawn
+contracts. It costs about six sub-agents per graded run against one, so say that out loud before
+spending it: the panel when the number will be acted on, `agents/grader.md`'s single judge when you
+are sanity-checking your own draft.
 
-Where an assertion can be checked by a script, write the script — faster, repeatable, and it doesn't
-drift.
+Where an assertion can be checked by a script, write the script — faster, repeatable, no drift.
 
-Sub-agents land cold. **A parameter you don't pass reads as "that file does not exist for this run"**,
-not as "go find it" — `references/grading-panel.md` collects what each one needs.
+Sub-agents land cold, and **a parameter you don't pass reads as "that file does not exist for this
+run"**, not as "go find it." `eval_prompt` is the one people skip; without it a judge cannot tell
+genuine completion from output that merely has the right shape.
 
-`eval_prompt` is the one people skip. Without it a judge cannot tell genuine completion from output
-that merely looks like the right shape.
-
-Then the analyst pass: read `agents/analyzer.md` (Mode 1) for what to look for — assertions that
-pass regardless of the skill and so discriminate nothing, high-variance evals, time and token
-trade-offs. Route its output back in, or nobody ever sees it:
+Then the analyst pass: read `agents/analyzer.md` (Mode 1) for what to look for — assertions that pass
+regardless of the skill and so discriminate nothing, high-variance evals, time and token trade-offs.
+Route its output back in, or nobody ever sees it:
 
 ```bash
 python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name> --notes <notes.json>
 ```
 
-Run that **before** generating the viewer, and note that a later re-aggregation without `--notes`
-resets them.
+Run that **before** generating the viewer; a later re-aggregation without `--notes` resets them.
 
 Then show the person:
 
@@ -261,13 +250,13 @@ Then show the person:
 python eval-viewer/generate_review.py <workspace>/iteration-N --skill-name "<name>" --benchmark <workspace>/iteration-N/benchmark.json
 ```
 
-Add `--previous-workspace <workspace>/iteration-<N-1>` from iteration 2 on. This starts a server and
-blocks, so run it through your harness's own background facility — not `nohup ... &`, which is a
-parse error in PowerShell and breaks every Windows user. If there's no display, use
-`--static <path>` to write a standalone file and hand them the path.
+Add `--previous-workspace <workspace>/iteration-<N-1>` from iteration 2 on. It starts a server and
+blocks, so launch it through your harness's own background facility, never `nohup ... &`, which
+breaks every Windows user — `references/environments.md` says why. With no display, use
+`--static <path>` and hand them the file.
 
-Use this viewer rather than writing your own HTML — it carries the outputs, the previous
-iteration's outputs for comparison, the grades, and the benchmark in one place.
+Use this viewer rather than hand-written HTML — it carries the outputs, the previous iteration's
+outputs for comparison, the grades, and the benchmark in one place.
 
 Tell them what to expect, and **check that it opened before saying it did**: two tabs, Outputs for
 clicking through cases and leaving feedback, Benchmark for the numbers. Then wait.
@@ -277,21 +266,18 @@ clicking through cases and leaving feedback, Benchmark for the numbers. Then wai
 `feedback.json` has one entry per run. Empty feedback means they were fine with it — focus on the
 ones with actual complaints.
 
-Stop the viewer when you're done. Leaving it running holds the port, and the next iteration will
-either fail to bind or quietly serve stale results while you both discuss the new ones.
+Stop the viewer when you're done. Leaving it running holds the port, so the next iteration either
+fails to bind or quietly serves stale results while you both discuss the new ones.
 
 ---
 
 ## Improving the skill
 
-This is the part that matters. Everything above exists to make this step well-informed.
-
-**Generalize past the examples.** You're iterating on two or three cases the person knows
-intimately, because that's fast. But the skill will run on prompts nobody has seen. A change that
-fixes this case by naming this case has made the skill worse everywhere else. When something is
-stubborn, don't reach for a more specific rule — try a different framing, a different metaphor, a
-different way of describing the work. That's cheap to test and occasionally lands something much
-better.
+**Generalize past the examples.** You're iterating on two or three cases the person knows intimately
+because that's fast, but the skill will run on prompts nobody has seen. A change that fixes this case
+by naming this case has made the skill worse everywhere else. When something is stubborn, don't reach
+for a more specific rule — try a different framing, a different metaphor, a different way of
+describing the work. That's cheap to test and occasionally lands something much better.
 
 **Explain why, don't tighten screws.** When the instinct is to add ALWAYS or a rigid template, ask
 what you actually know that the model doesn't, and write *that* down instead. Models have good
@@ -306,8 +292,7 @@ free — it competes for the surviving prefix.
 the same multi-step setup, that's the skill telling you to bundle it. Write it once into `scripts/`
 and point at it.
 
-Take your time here. Draft the revision, then read it again cold and improve it before running
-anything.
+Draft the revision, then read it again cold and improve it before running anything.
 
 ### Then go again
 
@@ -320,39 +305,36 @@ whether it still holds up — that's the step that catches overfitting, and it's
 
 ## Making it trigger
 
-The description is the whole triggering mechanism, and it is worth measuring rather than guessing.
-Offer this once the skill itself is in good shape.
+Triggering is worth measuring rather than guessing. Offer this once the skill itself is in good
+shape.
 
 Build ~20 queries, half should-trigger and half not, and make them real: file paths, job context,
-casual phrasing, typos. `"Format this data"` tests nothing. The should-not cases carry the value —
-make them **near-misses** sharing vocabulary with the description. An obviously-irrelevant negative
-measures nothing, and a simple one-step query is a poor test whatever the description says, because
-Claude handles those without consulting any skill.
+casual phrasing, typos. The should-not cases carry the value — make them **near-misses** sharing
+vocabulary with the description.
 
-`references/description-optimization.md` has the review UI, the loop, and its cost controls. Two
-things before starting: it spawns nested `claude -p` sessions and can spend real money, so read the
-projected cost it prints; and each probe runs in an isolated temp project root, which is what keeps
-it out of your actual `.claude/`.
+Read `references/description-optimization.md` before starting. It has how to write and hold out the
+query set, the review UI, the loop, and its cost controls — and the loop spawns nested `claude -p`
+sessions that can spend real money, so show the person the cost it projects.
 
 ---
 
 ## Packaging and handing it over
 
-Most of the time there is nothing to package. A skill is a directory:
+Most of the time there is nothing to package. A skill is a directory, and Claude Code picks up a new
+one live, no restart:
 
 ```bash
 cp -r my-skill ~/.claude/skills/       # personal, all projects
 cp -r my-skill .claude/skills/         # project, committed with the repo
 ```
 
-Claude Code picks it up live, no restart. For claude.ai, the API, or wider sharing, run
-`python -m scripts.package_skill <path-to-skill>` and read what it reports including and excluding —
-that report exists because packagers silently sweeping up `.env` files were shipping people's
-secrets. `references/distribution.md` has every route.
+For claude.ai, the API, or wider sharing, run `python -m scripts.package_skill <path-to-skill>` and
+read what it reports including and excluding — that report exists because packagers silently sweeping
+up `.env` files were shipping people's secrets. `references/distribution.md` has every route.
 
-**If the skill lives under `~/.claude/plugins/cache/`, do not edit it there.** That's a managed
-copy. Your edits will appear to work and then vanish on the next plugin update. Copy it somewhere
-the person controls first, and tell them you did and why.
+**If the skill lives under `~/.claude/plugins/cache/`, do not edit it there.** Edits to that managed
+copy appear to work and then vanish on the next plugin update. Copy it somewhere the person controls
+first, and tell them you did and why.
 
 ---
 
@@ -367,11 +349,9 @@ optimizer needs the `claude` CLI. Read it if something in the main flow isn't av
 **Sub-agent prompts** — read the relevant one before spawning:
 - `agents/grader.md` — evaluating assertions against outputs
 - `agents/analyzer.md` — Mode 1 benchmark analysis; Mode 2 post-hoc comparison
-- `agents/comparator.md` — blind A/B between two versions. Everything above the
-  `# Blind Comparator Agent` heading is **for you, not for the judge**: it is the de-identification
-  step you perform before spawning, and it names where the assignment key is kept. Paste only the
-  text from that heading down. Sending the judge the protocol tells it where the answer lives, which
-  is the one thing the blinding exists to prevent.
+- `agents/comparator.md` — blind A/B between two versions. It is **two documents**: a caller protocol
+  you perform, then the judge's prompt from the `# Blind Comparator Agent` heading down. Paste only
+  that second part — the protocol names where the answer lives.
 
 **References** — read when relevant, not upfront:
 - `references/frontmatter.md` — every field, the three targets, YAML hazards
